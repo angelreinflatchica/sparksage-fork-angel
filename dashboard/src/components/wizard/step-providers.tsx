@@ -46,7 +46,9 @@ export function StepProviders() {
 
     setTestingProvider(providerId);
     try {
-      const result = await api.testProvider(token, providerId);
+      // Pass the actual apiKey to the test function so it can be verified
+      // even if it hasn't been saved to the permanent config yet.
+      const result = await api.testProvider(token, providerId, apiKey);
       setTestResults((prev) => ({
         ...prev,
         [providerId]: { success: result.success, message: result.message },

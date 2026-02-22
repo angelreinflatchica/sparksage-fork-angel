@@ -54,6 +54,71 @@ async def init_db():
             data         TEXT    NOT NULL DEFAULT '{}'
         );
 
+        CREATE TABLE IF NOT EXISTS faqs (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id       TEXT NOT NULL,
+            question       TEXT NOT NULL,
+            answer         TEXT NOT NULL,
+            match_keywords TEXT NOT NULL,
+            times_used     INTEGER DEFAULT 0,
+            created_by     TEXT,
+            created_at     TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS command_permissions (
+            command_name TEXT NOT NULL,
+            guild_id     TEXT NOT NULL,
+            role_id      TEXT NOT NULL,
+            PRIMARY KEY (command_name, guild_id, role_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS channel_prompts (
+            channel_id TEXT PRIMARY KEY,
+            guild_id   TEXT NOT NULL,
+            system_prompt TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS channel_providers (
+            channel_id TEXT PRIMARY KEY,
+            guild_id   TEXT NOT NULL,
+            provider   TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS moderation_stats (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id    TEXT NOT NULL,
+            channel_id  TEXT NOT NULL,
+            user_id     TEXT NOT NULL,
+            message_id  TEXT NOT NULL,
+            content     TEXT NOT NULL,
+            reason      TEXT NOT NULL,
+            severity    TEXT NOT NULL,
+            status      TEXT DEFAULT 'pending', -- pending, dismissed, deleted, warned
+            created_at  TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS analytics (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_type TEXT NOT NULL,     -- 'command', 'mention', 'faq', 'moderation', 'digest'
+            guild_id TEXT,
+            channel_id TEXT,
+            user_id TEXT,
+            provider TEXT,
+            tokens_used INTEGER DEFAULT 0,
+            latency_ms INTEGER,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS plugins (
+            id          TEXT PRIMARY KEY, -- The folder name/slug
+            name        TEXT NOT NULL,
+            version     TEXT,
+            author      TEXT,
+            description TEXT,
+            enabled     INTEGER DEFAULT 0,
+            created_at  TEXT DEFAULT (datetime('now'))
+        );
+
         INSERT OR IGNORE INTO wizard_state (id) VALUES (1);
         """
     )
@@ -119,6 +184,21 @@ async def sync_env_to_db():
         "BOT_PREFIX": cfg.BOT_PREFIX,
         "MAX_TOKENS": str(cfg.MAX_TOKENS),
         "SYSTEM_PROMPT": cfg.SYSTEM_PROMPT,
+        "ADMIN_PASSWORD": cfg.ADMIN_PASSWORD or "",
+        "WELCOME_ENABLED": getattr(cfg, "WELCOME_ENABLED", "0"),
+        "WELCOME_CHANNEL_ID": getattr(cfg, "WELCOME_CHANNEL_ID", ""),
+        "WELCOME_MESSAGE": getattr(cfg, "WELCOME_MESSAGE", "Welcome {user} to {server}! We're glad to have you here. Check out the rules and feel free to ask me any questions."),
+        "DIGEST_ENABLED": getattr(cfg, "DIGEST_ENABLED", "0"),
+        "DIGEST_CHANNEL_ID": getattr(cfg, "DIGEST_CHANNEL_ID", ""),
+        "DIGEST_TIME": getattr(cfg, "DIGEST_TIME", "09:00"),
+        "MODERATION_ENABLED": getattr(cfg, "MODERATION_ENABLED", "0"),
+        "MOD_LOG_CHANNEL_ID": getattr(cfg, "MOD_LOG_CHANNEL_ID", ""),
+        "MODERATION_SENSITIVITY": getattr(cfg, "MODERATION_SENSITIVITY", "medium"),
+        "TRANSLATE_AUTO_ENABLED": getattr(cfg, "TRANSLATE_AUTO_ENABLED", "0"),
+        "TRANSLATE_AUTO_CHANNEL_ID": getattr(cfg, "TRANSLATE_AUTO_CHANNEL_ID", ""),
+        "TRANSLATE_AUTO_TARGET": getattr(cfg, "TRANSLATE_AUTO_TARGET", "English"),
+        "RATE_LIMIT_USER": str(getattr(cfg, "RATE_LIMIT_USER", "5")),
+        "RATE_LIMIT_GUILD": str(getattr(cfg, "RATE_LIMIT_GUILD", "20")),
     }
     # Only insert keys that don't already exist in DB (don't overwrite user edits)
     db = await get_db()
@@ -139,6 +219,51 @@ async def sync_db_to_env():
 
     for key, value in all_config.items():
         set_key(env_path, key, value)
+
+
+# --- Moderation helpers ---
+
+
+async def add_mod_stat(guild_id: str, channel_id: str, user_id: str, message_id: str, content: str, reason: str, severity: str):
+    """Log a flagged message to moderation stats."""
+    db = await get_db()
+    await db.execute(
+        "INSERT INTO moderation_stats (guild_id, channel_id, user_id, message_id, content, reason, severity) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (guild_id, channel_id, user_id, message_id, content, reason, severity),
+    )
+    await db.commit()
+
+
+async def update_mod_stat(message_id: str, status: str):
+    """Update the status of a flagged message."""
+    db = await get_db()
+    await db.execute(
+        "UPDATE moderation_stats SET status = ? WHERE message_id = ?",
+        (status, message_id),
+    )
+    await db.commit()
+
+
+# --- Analytics helpers ---
+
+
+async def record_event(
+    event_type: str,
+    guild_id: str | None = None,
+    channel_id: str | None = None,
+    user_id: str | None = None,
+    provider: str | None = None,
+    tokens_used: int = 0,
+    latency_ms: int | None = None,
+):
+    """Record an event in the analytics table."""
+    db = await get_db()
+    await db.execute(
+        "INSERT INTO analytics (event_type, guild_id, channel_id, user_id, provider, tokens_used, latency_ms) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (event_type, guild_id, channel_id, user_id, provider, tokens_used, latency_ms),
+    )
+    await db.commit()
 
 
 # --- Conversation helpers ---
@@ -219,6 +344,51 @@ async def set_wizard_state(completed: bool | None = None, current_step: int | No
     if updates:
         await db.execute(f"UPDATE wizard_state SET {', '.join(updates)} WHERE id = 1", params)
         await db.commit()
+
+
+# --- Plugin helpers ---
+
+
+async def get_plugins() -> list[dict]:
+    """Get all plugins from the database."""
+    db = await get_db()
+    cursor = await db.execute("SELECT * FROM plugins")
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
+
+
+async def set_plugin_state(plugin_id: str, enabled: bool):
+    """Enable or disable a plugin."""
+    db = await get_db()
+    await db.execute(
+        "UPDATE plugins SET enabled = ? WHERE id = ?",
+        (int(enabled), plugin_id)
+    )
+    await db.commit()
+
+
+async def sync_plugin(plugin_data: dict):
+    """Add or update plugin metadata."""
+    db = await get_db()
+    await db.execute(
+        """
+        INSERT INTO plugins (id, name, version, author, description) 
+        VALUES (?, ?, ?, ?, ?) 
+        ON CONFLICT(id) DO UPDATE SET 
+            name = excluded.name, 
+            version = excluded.version, 
+            author = excluded.author, 
+            description = excluded.description
+        """,
+        (
+            plugin_data["id"],
+            plugin_data["name"],
+            plugin_data.get("version"),
+            plugin_data.get("author"),
+            plugin_data.get("description")
+        )
+    )
+    await db.commit()
 
 
 # --- Session helpers ---

@@ -32,11 +32,12 @@ async def list_providers(user: dict = Depends(get_current_user)):
 
 class TestProviderRequest(BaseModel):
     provider: str
+    api_key: str | None = None
 
 
 @router.post("/test")
 async def test_provider(body: TestProviderRequest, user: dict = Depends(get_current_user)):
-    result = providers.test_provider(body.provider)
+    result = providers.test_provider(body.provider, body.api_key)
     return result
 
 

@@ -11,6 +11,13 @@ import {
   MessageSquare,
   Wand2,
   LogOut,
+  Users,
+  Shield,
+  Calendar,
+  ShieldAlert,
+  Languages,
+  BarChart3,
+  Puzzle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -28,7 +35,17 @@ import { Button } from "@/components/ui/button";
 
 const NAV_ITEMS = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { title: "Providers", href: "/dashboard/providers", icon: Cpu },
+  { title: "FAQs", href: "/dashboard/faq", icon: MessageSquare },
+  { title: "Onboarding", href: "/dashboard/onboarding", icon: Users },
+  { title: "Permissions", href: "/dashboard/permissions", icon: Shield },
+  { title: "Daily Digest", href: "/dashboard/digest", icon: Calendar },
+  { title: "Moderation", href: "/dashboard/moderation", icon: ShieldAlert },
+  { title: "Translation", href: "/dashboard/translate", icon: Languages },
+  { title: "Plugins", href: "/dashboard/plugins", icon: Puzzle },
+  { title: "Prompts", href: "/dashboard/prompts", icon: MessageSquare },
+  { title: "Channel Providers", href: "/dashboard/channel-providers", icon: Cpu },
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
   { title: "Conversations", href: "/dashboard/conversations", icon: MessageSquare },
 ];

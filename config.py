@@ -3,7 +3,9 @@ from __future__ import annotations
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from the same directory as this file
+env_path = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(env_path)
 
 # Discord
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
@@ -37,13 +39,39 @@ SYSTEM_PROMPT = os.getenv(
     "Be concise, helpful, and engaging.",
 )
 
+# Onboarding
+WELCOME_ENABLED = os.getenv("WELCOME_ENABLED", "0")
+WELCOME_CHANNEL_ID = os.getenv("WELCOME_CHANNEL_ID", "")
+WELCOME_MESSAGE = os.getenv(
+    "WELCOME_MESSAGE",
+    "Welcome {user} to {server}! We're glad to have you here. Check out the rules and feel free to ask me any questions.",
+)
+
+# Daily Digest
+DIGEST_ENABLED = os.getenv("DIGEST_ENABLED", "0")
+DIGEST_CHANNEL_ID = os.getenv("DIGEST_CHANNEL_ID", "")
+DIGEST_TIME = os.getenv("DIGEST_TIME", "09:00")
+
+# Moderation
+MODERATION_ENABLED = os.getenv("MODERATION_ENABLED", "0")
+MOD_LOG_CHANNEL_ID = os.getenv("MOD_LOG_CHANNEL_ID", "")
+MODERATION_SENSITIVITY = os.getenv("MODERATION_SENSITIVITY", "medium")
+
+# Translation
+TRANSLATE_AUTO_ENABLED = os.getenv("TRANSLATE_AUTO_ENABLED", "0")
+TRANSLATE_AUTO_CHANNEL_ID = os.getenv("TRANSLATE_AUTO_CHANNEL_ID", "")
+TRANSLATE_AUTO_TARGET = os.getenv("TRANSLATE_AUTO_TARGET", "English")
+
+# Rate Limiting
+RATE_LIMIT_USER = int(os.getenv("RATE_LIMIT_USER", "5"))
+RATE_LIMIT_GUILD = int(os.getenv("RATE_LIMIT_GUILD", "20"))
 # Dashboard settings
 DATABASE_PATH = os.getenv("DATABASE_PATH", "sparksage.db")
 DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "8000"))
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 DISCORD_CLIENT_ID = os.getenv("DISCORD_CLIENT_ID", "")
 DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
-JWT_SECRET = os.getenv("JWT_SECRET", "sparksage-dev-secret-change-me")
+JWT_SECRET = os.getenv("JWT_SECRET", "sparksage-dev-secret-change-me-minimum-32-chars")
 
 
 def _build_providers() -> dict:
@@ -118,6 +146,20 @@ def reload_from_db(db_config: dict[str, str]):
         "DISCORD_CLIENT_ID": str,
         "DISCORD_CLIENT_SECRET": str,
         "JWT_SECRET": str,
+        "WELCOME_ENABLED": str,
+        "WELCOME_CHANNEL_ID": str,
+        "WELCOME_MESSAGE": str,
+        "DIGEST_ENABLED": str,
+        "DIGEST_CHANNEL_ID": str,
+        "DIGEST_TIME": str,
+        "MODERATION_ENABLED": str,
+        "MOD_LOG_CHANNEL_ID": str,
+        "MODERATION_SENSITIVITY": str,
+        "TRANSLATE_AUTO_ENABLED": str,
+        "TRANSLATE_AUTO_CHANNEL_ID": str,
+        "TRANSLATE_AUTO_TARGET": str,
+        "RATE_LIMIT_USER": int,
+        "RATE_LIMIT_GUILD": int,
     }
 
     for key, converter in mapping.items():

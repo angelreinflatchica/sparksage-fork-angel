@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, Save, RotateCcw } from "lucide-react";
-import { api } from "@/lib/api";
+import { api } => "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,6 +26,8 @@ const settingsSchema = z.object({
   OPENROUTER_API_KEY: z.string(),
   ANTHROPIC_API_KEY: z.string(),
   OPENAI_API_KEY: z.string(),
+  RATE_LIMIT_USER: z.number().min(1).max(60),
+  RATE_LIMIT_GUILD: z.number().min(1).max(500),
 });
 
 type SettingsForm = z.infer<typeof settingsSchema>;
@@ -41,6 +43,8 @@ const DEFAULTS: SettingsForm = {
   OPENROUTER_API_KEY: "",
   ANTHROPIC_API_KEY: "",
   OPENAI_API_KEY: "",
+  RATE_LIMIT_USER: 5,
+  RATE_LIMIT_GUILD: 20,
 };
 
 export default function SettingsPage() {
@@ -63,7 +67,7 @@ export default function SettingsPage() {
         const mapped: Partial<SettingsForm> = {};
         for (const key of Object.keys(DEFAULTS) as (keyof SettingsForm)[]) {
           if (config[key] !== undefined) {
-            if (key === "MAX_TOKENS") {
+            if (key === "MAX_TOKENS" || key === "RATE_LIMIT_USER" || key === "RATE_LIMIT_GUILD") {
               mapped[key] = Number(config[key]);
             } else {
               (mapped as Record<string, string>)[key] = config[key];
@@ -196,6 +200,54 @@ export default function SettingsPage() {
                 {...form.register("SYSTEM_PROMPT")}
                 rows={4}
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Rate Limits */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Usage Limits</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>User Rate Limit</Label>
+                  <span className="text-sm font-mono text-muted-foreground">
+                    {form.watch("RATE_LIMIT_USER")} req/min
+                  </span>
+                </div>
+                <Slider
+                  value={[form.watch("RATE_LIMIT_USER")]}
+                  onValueChange={([val]) => form.setValue("RATE_LIMIT_USER", val)}
+                  min={1}
+                  max={60}
+                  step={1}
+                />
+                <p className="text-[10px] text-muted-foreground italic">
+                  Max requests per user per minute.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Server Rate Limit</Label>
+                  <span className="text-sm font-mono text-muted-foreground">
+                    {form.watch("RATE_LIMIT_GUILD")} req/min
+                  </span>
+                </div>
+                <Slider
+                  value={[form.watch("RATE_LIMIT_GUILD")]}
+                  onValueChange={([val]) => form.setValue("RATE_LIMIT_GUILD", val)}
+                  min={1}
+                  max={500}
+                  step={5}
+                />
+                <p className="text-[10px] text-muted-foreground italic">
+                  Total requests per Discord server per minute.
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>

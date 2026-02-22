@@ -23,7 +23,8 @@ export interface WizardStatus {
 
 export interface BotStatus {
   online: boolean;
-  latency: number | null;
-  guilds: number;
-  uptime: number | null;
+  username: string | null;
+  latency_ms: number | null;
+  guild_count: number;
+  uptime?: number | null;
 }
