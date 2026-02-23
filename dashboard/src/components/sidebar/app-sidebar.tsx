@@ -50,8 +50,6 @@ const NAV_ITEMS = [
   { title: "Cost Tracking", href: "/dashboard/cost-tracking", icon: DollarSign },
   { title: "Providers", href: "/dashboard/providers", icon: Cpu },
   { title: "Onboarding", href: "/dashboard/onboarding", icon: Users },
-  { title: "Daily Digest", href: "/dashboard/digest", icon: Calendar },
-  { title: "Moderation", href: "/dashboard/moderation", icon: ShieldAlert },
 
   { title: "Plugins", href: "/dashboard/plugins", icon: Puzzle },
 

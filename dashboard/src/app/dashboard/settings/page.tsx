@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Save, RotateCcw, Languages, Hash, Power, PowerOff, Info, Globe, Plus, Trash2, Cpu, CheckCircle2, AlertCircle, MessageSquare } from "lucide-react";
+import { Loader2, Save, RotateCcw, Languages, Hash, Power, PowerOff, Info, Globe, Plus, Trash2, Cpu, CheckCircle2, AlertCircle, MessageSquare, ShieldAlert, Sliders, Calendar, Clock } from "lucide-react";
 import { api, ChannelProviderItem, ProviderItem, ChannelPromptItem } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -58,6 +59,14 @@ export default function SettingsPage() {
   const [translateEnabled, setTranslateEnabled] = useState(false);
   const [translateChannelId, setTranslateChannelId] = useState("");
   const [translateTargetLang, setTranslateTargetLang] = useState("English");
+  // Moderation states
+  const [modEnabled, setModEnabled] = useState(false);
+  const [modChannelId, setModChannelId] = useState("");
+  const [modSensitivity, setModSensitivity] = useState("medium");
+  // Daily Digest states
+  const [digestEnabled, setDigestEnabled] = useState(false);
+  const [digestChannelId, setDigestChannelId] = useState("");
+  const [digestTime, setDigestTime] = useState("09:00");
   // Channel Providers states
   const [channelProviderMappings, setChannelProviderMappings] = useState<ChannelProviderItem[]>([]);
   const [channelProviderAvailableProviders, setChannelProviderAvailableProviders] = useState<ProviderItem[]>([]);
@@ -95,6 +104,14 @@ export default function SettingsPage() {
         setTranslateEnabled(config.TRANSLATE_AUTO_ENABLED === "1");
         setTranslateChannelId(config.TRANSLATE_AUTO_CHANNEL_ID || "");
         setTranslateTargetLang(config.TRANSLATE_AUTO_TARGET || "English");
+        // Load Moderation settings
+        setModEnabled(config.MODERATION_ENABLED === "1");
+        setModChannelId(config.MOD_LOG_CHANNEL_ID || "");
+        setModSensitivity(config.MODERATION_SENSITIVITY || "medium");
+        // Load Daily Digest settings
+        setDigestEnabled(config.DIGEST_ENABLED === "1");
+        setDigestChannelId(config.DIGEST_CHANNEL_ID || "");
+        setDigestTime(config.DIGEST_TIME || "09:00");
         form.reset({ ...DEFAULTS, ...mapped });
       })
       .catch(() => toast.error("Failed to load settings"))
@@ -146,6 +163,14 @@ export default function SettingsPage() {
       payload.TRANSLATE_AUTO_ENABLED = translateEnabled ? "1" : "0";
       payload.TRANSLATE_AUTO_CHANNEL_ID = translateChannelId;
       payload.TRANSLATE_AUTO_TARGET = translateTargetLang;
+      // Save Moderation settings
+      payload.MODERATION_ENABLED = modEnabled ? "1" : "0";
+      payload.MOD_LOG_CHANNEL_ID = modChannelId;
+      payload.MODERATION_SENSITIVITY = modSensitivity;
+      // Save Daily Digest settings
+      payload.DIGEST_ENABLED = digestEnabled ? "1" : "0";
+      payload.DIGEST_CHANNEL_ID = digestChannelId;
+      payload.DIGEST_TIME = digestTime;
       await api.updateConfig(token, payload);
       toast.success("Settings saved successfully");
     } catch (err) {
@@ -271,11 +296,13 @@ export default function SettingsPage() {
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="translation">Translation</TabsTrigger>
             <TabsTrigger value="channel-providers">Channel Providers</TabsTrigger>
             <TabsTrigger value="prompts">Prompts</TabsTrigger>
+            <TabsTrigger value="moderation">Moderation</TabsTrigger>
+            <TabsTrigger value="digest">Daily Digest</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-6">
@@ -432,18 +459,18 @@ export default function SettingsPage() {
                   </div>
                 ))}
               </CardContent>
-            </Card>
-        <Button type="submit" disabled={saving} className="w-full">
-          {saving ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          Save Settings
-        </Button>
-          </TabsContent>
-          <TabsContent value="translation" className="space-y-6">
-            {/* Translation */}
+                                                </Card>
+                                                      <Button type="submit" disabled={saving} className="w-full">
+                                                        {saving ? (
+                                                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                          <Save className="mr-2 h-4 w-4" />
+                                                        )}
+                                                        Save Settings
+                                                      </Button>
+                                                        </TabsContent>
+                                              
+                                                        <TabsContent value="translation" className="space-y-6">            {/* Translation */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Translation</CardTitle>
@@ -726,6 +753,176 @@ export default function SettingsPage() {
                 </p>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="moderation" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldAlert className="h-5 w-5" />
+                  AI Sentinel
+                </CardTitle>
+                <CardDescription>
+                  Analyze messages for toxicity, spam, and rule violations.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between space-x-2 rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Enable Auto-Moderation</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Status: {modEnabled ? "Scanning Messages" : "Inactive"}
+                    </p>
+                  </div>
+                  <Button
+                    variant={modEnabled ? "default" : "outline"}
+                    onClick={() => setModEnabled(!modEnabled)}
+                    className="w-32"
+                  >
+                    {modEnabled ? (
+                      <><Power className="mr-2 h-4 w-4" /> Enabled</>
+                    ) : (
+                      <><PowerOff className="mr-2 h-4 w-4" /> Disabled</>
+                    )}
+                  </Button>
+                </div>
+
+                <div className="space-y-4">
+                  <Label htmlFor="channel" className="flex items-center gap-2">
+                    <Hash className="h-4 w-4" /> Mod Log Channel ID
+                  </Label>
+                  <Input
+                    id="channel"
+                    placeholder="e.g. 123456789012345678"
+                    value={modChannelId}
+                    onChange={(e) => setModChannelId(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  <Label className="flex items-center gap-2">
+                    <Sliders className="h-4 w-4" /> Moderation Sensitivity
+                  </Label>
+                  <RadioGroup value={modSensitivity} onValueChange={setModSensitivity} className="grid grid-cols-3 gap-4">
+                    <div>
+                      <RadioGroupItem value="low" id="low" className="peer sr-only" />
+                      <Label
+                        htmlFor="low"
+                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                      >
+                        <span className="text-sm font-semibold">Low</span>
+                        <span className="text-[10px] text-muted-foreground text-center">Severe only</span>
+                      </Label>
+                    </div>
+                    <div>
+                      <RadioGroupItem value="medium" id="medium" className="peer sr-only" />
+                      <Label
+                        htmlFor="medium"
+                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                      >
+                        <span className="text-sm font-semibold">Medium</span>
+                        <span className="text-[10px] text-muted-foreground text-center">Balanced</span>
+                      </Label>
+                    </div>
+                    <div>
+                      <RadioGroupItem value="high" id="high" className="peer sr-only" />
+                      <Label
+                        htmlFor="high"
+                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                      >
+                        <span className="text-sm font-semibold">High</span>
+                        <span className="text-[10px] text-muted-foreground text-center">Strict</span>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                <div className="flex items-start gap-2 rounded-lg bg-muted p-3 text-[10px]">
+                  <Info className="mt-0.5 h-3 w-3 shrink-0" />
+                  <div className="text-muted-foreground space-y-1">
+                    <p>
+                      SparkSage uses AI to analyze message intent. Flagged content is never 
+                      automatically deleted—it is sent to the moderation log with action buttons 
+                      (Delete, Warn, Dismiss) for human review.
+                    </p>
+                    <p>
+                      <strong>Low:</strong> Only flags extreme toxicity or obvious spam.<br/>
+                      <strong>Medium:</strong> Flags general toxicity, insults, and repetitive spam.<br/>
+                      <strong>High:</strong> Flags even minor instances of negativity or borderline spam.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="digest" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Scheduler
+                </CardTitle>
+                <CardDescription>
+                  Automatically summarize the past 24 hours of activity and post it to a channel.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between space-x-2 rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Enable Daily Digest</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Status: {digestEnabled ? "Active" : "Disabled"}
+                    </p>
+                  </div>
+                  <Button
+                    variant={digestEnabled ? "default" : "outline"}
+                    onClick={() => setDigestEnabled(!digestEnabled)}
+                    className="w-32"
+                  >
+                    {digestEnabled ? (
+                      <><Power className="mr-2 h-4 w-4" /> Enabled</>
+                    ) : (
+                      <><PowerOff className="mr-2 h-4 w-4" /> Disabled</>
+                    )}
+                  </Button>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="time" className="flex items-center gap-2">
+                      <Clock className="h-4 w-4" /> Delivery Time (24h)
+                    </Label>
+                    <Input
+                      id="time"
+                      type="time"
+                      value={digestTime}
+                      onChange={(e) => setDigestTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="channel" className="flex items-center gap-2">
+                      <Hash className="h-4 w-4" /> Digest Channel ID
+                    </Label>
+                    <Input
+                      id="channel"
+                      placeholder="e.g. 123456789012345678"
+                      value={digestChannelId}
+                      onChange={(e) => setDigestChannelId(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2 rounded-lg bg-muted p-3 text-[10px]">
+                  <Info className="mt-0.5 h-3 w-3 shrink-0" />
+                  <p className="text-muted-foreground">
+                    The digest will include a bullet-point summary of the top 5 most active channels 
+                    from the last 24 hours. The bot must have permission to view those channels 
+                    and send messages in the digest channel.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </form>
