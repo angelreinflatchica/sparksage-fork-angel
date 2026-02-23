@@ -49,7 +49,6 @@ const NAV_ITEMS = [
   { title: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { title: "Cost Tracking", href: "/dashboard/cost-tracking", icon: DollarSign },
   { title: "Providers", href: "/dashboard/providers", icon: Cpu },
-  { title: "FAQs", href: "/dashboard/faq", icon: MessageSquare },
   { title: "Onboarding", href: "/dashboard/onboarding", icon: Users },
   { title: "Permissions", href: "/dashboard/permissions", icon: Shield },
   { title: "Daily Digest", href: "/dashboard/digest", icon: Calendar },
@@ -60,6 +59,7 @@ const NAV_ITEMS = [
 
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
   { title: "Conversations", href: "/dashboard/conversations", icon: MessageSquare },
+  { title: "FAQs", href: "/dashboard/faq", icon: MessageSquare },
 ];
 
 export function AppSidebar() {
