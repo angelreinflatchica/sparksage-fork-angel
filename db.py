@@ -99,12 +99,12 @@ async def init_db():
 
         CREATE TABLE IF NOT EXISTS analytics (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            event_type TEXT NOT NULL,     -- 'command', 'mention', 'faq', 'moderation', 'digest'
+            event_type TEXT NOT NULL,     -- 'command', 'mention', 'faq', 'moderation'
             guild_id TEXT,
             channel_id TEXT,
             user_id TEXT,
             provider TEXT,
-            tokens_used INTEGER DEFAULT 0,
+            tokens_used INTEGER,
             latency_ms INTEGER,
             created_at TEXT DEFAULT (datetime('now'))
         );

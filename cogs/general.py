@@ -17,7 +17,7 @@ class General(commands.Cog):
         messages = await database.get_messages(str(channel_id), limit=20)
         return [{"role": m["role"], "content": m["content"]} for m in messages]
 
-    async def ask_ai(self, channel_id: int, user_name: str, message: str) -> tuple[str, str]:
+    async def ask_ai(self, guild_id: int | None, channel_id: int, user_id: int, user_name: str, message: str) -> tuple[str, str]:
         """Send a message to AI and return (response, provider_name)."""
         # Store user message in DB
         await database.add_message(str(channel_id), "user", f"{user_name}: {message}")
@@ -37,6 +37,15 @@ class General(commands.Cog):
             response, provider_name, tokens, latency = await asyncio.to_thread(
                 providers.chat, history, active_prompt, override_primary=channel_provider
             )
+            await database.record_event(
+                "command",
+                guild_id=str(guild_id) if guild_id else None,
+                channel_id=str(channel_id),
+                user_id=str(user_id),
+                provider=provider_name,
+                tokens_used=tokens,
+                latency_ms=latency
+            )
             # Store assistant response in DB
             await database.add_message(str(channel_id), "assistant", response, provider=provider_name)
             return response, provider_name
@@ -49,7 +58,7 @@ class General(commands.Cog):
     async def ask(self, interaction: discord.Interaction, question: str):
         await interaction.response.defer()
         response, provider_name = await self.ask_ai(
-            interaction.channel_id, interaction.user.display_name, question
+            interaction.guild_id, interaction.channel_id, interaction.user.id, interaction.user.display_name, question
         )
         provider_label = config.PROVIDERS.get(provider_name, {}).get("name", provider_name)
         footer = f"\n-# Powered by {provider_label}"

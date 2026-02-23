@@ -43,6 +43,15 @@ Code:
             [{"role": "user", "content": prompt}],
             config.SYSTEM_PROMPT
         )
+        await database.record_event(
+            "command",
+            guild_id=str(interaction.guild_id) if interaction.guild_id else None,
+            channel_id=str(interaction.channel_id),
+            user_id=str(interaction.user.id),
+            provider=provider_name,
+            tokens_used=tokens,
+            latency_ms=latency
+        )
 
         # Save response to DB with a marker for the new dashboard
         db_content = f"[Code Review]\n{response}"
