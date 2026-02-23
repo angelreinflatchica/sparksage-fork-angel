@@ -50,8 +50,7 @@ async def reload_plugin(plugin_id: str, user: dict = Depends(get_current_user)):
 @router.post("/sync")
 async def sync_plugins(user: dict = Depends(get_current_user)):
     """Force-sync all commands globally."""
-    try:
-        await bot.plugin_manager.sync_commands()
-        return {"status": "ok"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    success, message = await bot.plugin_manager.sync_commands()
+    if not success:
+        raise HTTPException(status_code=500, detail=message)
+    return {"status": "ok"}

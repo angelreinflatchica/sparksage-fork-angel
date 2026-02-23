@@ -25,17 +25,17 @@ class PluginManager:
         if sparksage_root not in sys.path:
             sys.path.insert(0, sparksage_root)
 
-    async def sync_commands(self, guild_id: int | None = None):
+    async def sync_commands(self, guild_id: int | None = None) -> tuple[bool, str]:
         """Sync slash commands globally or to a specific guild."""
         if self.bot is None:
             logger.error("Bot instance is None, cannot sync commands.")
             print("❌ Bot instance is None, cannot sync commands.")
-            return
+            return False, "Bot instance is None, cannot sync commands."
 
         if self.bot.tree is None:
             logger.error("Bot command tree is None, cannot sync commands.")
             print("❌ Bot command tree is None, cannot sync commands.")
-            return False, "Bot command tree is None, cannot sync commands." # Return error message
+            return False, "Bot command tree is None, cannot sync commands."
 
         try:
             print(f"DEBUG: In sync_commands, self.bot: {self.bot}")
@@ -56,7 +56,7 @@ class PluginManager:
         except Exception as e:
             logger.error(f"Failed to sync commands: {e}")
             print(f"❌ Failed to sync commands: {e}")
-            raise # Re-raise the exception to get a full traceback
+            return False, str(e)
 
 
     async def scan_plugins(self):
