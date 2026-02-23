@@ -65,6 +65,22 @@ class SparkSageBot(commands.Bot):
         except Exception as e:
             print(f"Failed to sync global commands: {e}")
 
+    async def _sync_commands_on_loop(self, guild_id: int | None = None) -> tuple[bool, str]:
+        """Helper to sync commands directly on the bot's event loop."""
+        try:
+            if guild_id:
+                guild = self.get_guild(guild_id)
+                if guild:
+                    self.tree.copy_global_to(guild=guild)
+                    await self.tree.sync(guild=guild)
+                    return True, ""
+                return False, f"Guild {guild_id} not found."
+            else:
+                await self.tree.sync()
+                return True, ""
+        except Exception as e:
+            return False, str(e)
+
 bot = SparkSageBot()
 
 MAX_HISTORY = 20

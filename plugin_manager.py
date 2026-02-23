@@ -7,6 +7,7 @@ import traceback
 import sys
 from typing import TYPE_CHECKING
 import db
+import asyncio # Added this import
 
 if TYPE_CHECKING:
     from bot import SparkSageBot
@@ -41,18 +42,20 @@ class PluginManager:
             print(f"DEBUG: In sync_commands, self.bot: {self.bot}")
             print(f"DEBUG: In sync_commands, self.bot.tree: {self.bot.tree}")
             
-            if guild_id:
-                guild = self.bot.get_guild(guild_id)
-                if guild:
-                    self.bot.tree.copy_global_to(guild=guild)
-                    await self.bot.tree.sync(guild=guild)
-                    logger.info(f"Synced commands to guild: {guild_id}")
-                    print(f"✅ Synced commands to guild: {guild_id}")
+            # Use asyncio.run_coroutine_threadsafe to run the sync on the bot's event loop
+            future = asyncio.run_coroutine_threadsafe(
+                self.bot._sync_commands_on_loop(guild_id), self.bot.loop
+            )
+            success, message = future.result() # This will block until the coroutine on the bot's loop completes
+
+            if success:
+                logger.info(f"Synced commands (guild_id: {guild_id})")
+                print(f"✅ Synced commands (guild_id: {guild_id})")
+                return True, ""
             else:
-                await self.bot.tree.sync()
-                logger.info("Synced commands globally")
-                print("✅ Synced commands globally")
-            return True, ""
+                logger.error(f"Failed to sync commands (guild_id: {guild_id}): {message}")
+                print(f"❌ Failed to sync commands (guild_id: {guild_id}): {message}")
+                return False, message
         except Exception as e:
             logger.error(f"Failed to sync commands: {e}")
             print(f"❌ Failed to sync commands: {e}")
