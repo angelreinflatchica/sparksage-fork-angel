@@ -145,7 +145,7 @@ export default function AnalyticsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" /> Activity History
+                  <TrendingUp className="h-4 w-4" /> Messages Per Day
                 </CardTitle>
                 <CardDescription>Daily request count over the last 14 days.</CardDescription>
               </CardHeader>
@@ -207,8 +207,11 @@ export default function AnalyticsPage() {
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip />
-                    <Legend />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                      formatter={(value: number, name: string) => [`${value.toLocaleString()} requests`, name]}
+                    />
+                    <Legend formatter={(value: string) => value.charAt(0).toUpperCase() + value.slice(1)} />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -227,9 +230,10 @@ export default function AnalyticsPage() {
                     <XAxis dataKey="channel_id" fontSize={10} hide />
                     <YAxis fontSize={12} />
                     <Tooltip 
+                      contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                       labelFormatter={(val) => `Channel: ${val}`}
                     />
-                    <Bar dataKey="count" name="Interactions" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="count" name="Count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -257,7 +261,9 @@ export default function AnalyticsPage() {
                       fontSize={12}
                     />
                     <YAxis fontSize={12} />
-                    <Tooltip />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                    />
                     <Line 
                       type="monotone" 
                       dataKey="avg_latency" 
