@@ -47,8 +47,9 @@ import { ClientOnly } from "@/components/client-only";
 const NAV_ITEMS = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { title: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
-  { title: "Cost Tracking", href: "/dashboard/cost-tracking", icon: DollarSign },
   { title: "Providers", href: "/dashboard/providers", icon: Cpu },
+  { title: "Cost Tracking", href: "/dashboard/cost-tracking", icon: DollarSign },
+
   { title: "Onboarding", href: "/dashboard/onboarding", icon: Users },
 
   { title: "Plugins", href: "/dashboard/plugins", icon: Puzzle },
