@@ -100,18 +100,22 @@ class Digest(commands.Cog):
             try:
                 # Use providers.chat with history as context
                 import asyncio
-                response, provider_name, tokens, latency = await asyncio.to_thread(
+                response, provider_name, input_tokens, output_tokens, latency = await asyncio.to_thread(
                     providers.chat, recent_messages, prompt
                 )
                 summary_sections.append(f"### #{ch_name}\n{response}")
                 
+                estimated_cost = providers.calculate_cost(provider_name, input_tokens, output_tokens)
+
                 # Record analytics for each channel summary
                 await database.record_event(
                     event_type="digest",
                     guild_id=str(target_channel.guild.id),
                     channel_id=str(ch_id),
                     provider=provider_name,
-                    tokens_used=tokens,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    estimated_cost=estimated_cost,
                     latency_ms=latency
                 )
             except Exception as e:

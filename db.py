@@ -104,10 +104,19 @@ async def init_db():
             channel_id TEXT,
             user_id TEXT,
             provider TEXT,
-            tokens_used INTEGER,
+            tokens_used INTEGER DEFAULT 0,
+            input_tokens INTEGER DEFAULT 0,
+            output_tokens INTEGER DEFAULT 0,
+            estimated_cost REAL DEFAULT 0.0,
             latency_ms INTEGER,
             created_at TEXT DEFAULT (datetime('now'))
         );
+
+        -- Add new columns to existing analytics table if they don't exist
+        PRAGMA table_info(analytics); -- To check for existing columns
+        INSERT INTO config (key, value) VALUES ('db_version', '1') ON CONFLICT(key) DO UPDATE SET value=excluded.value;
+        
+
 
         CREATE TABLE IF NOT EXISTS plugins (
             id          TEXT PRIMARY KEY, -- The folder name/slug
@@ -253,17 +262,70 @@ async def record_event(
     channel_id: str | None = None,
     user_id: str | None = None,
     provider: str | None = None,
-    tokens_used: int = 0,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    estimated_cost: float = 0.0,
     latency_ms: int | None = None,
 ):
     """Record an event in the analytics table."""
     db = await get_db()
     await db.execute(
-        "INSERT INTO analytics (event_type, guild_id, channel_id, user_id, provider, tokens_used, latency_ms) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (event_type, guild_id, channel_id, user_id, provider, tokens_used, latency_ms),
+        "INSERT INTO analytics (event_type, guild_id, channel_id, user_id, provider, input_tokens, output_tokens, estimated_cost, latency_ms) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (event_type, guild_id, channel_id, user_id, provider, input_tokens, output_tokens, estimated_cost, latency_ms),
     )
     await db.commit()
+
+
+async def get_daily_costs() -> list[dict]:
+    """Get daily estimated costs per provider."""
+    db = await get_db()
+    cursor = await db.execute(
+        """
+        SELECT 
+            DATE(created_at) AS date, 
+            provider, 
+            SUM(estimated_cost) AS total_cost
+        FROM analytics
+        WHERE estimated_cost > 0
+        GROUP BY DATE(created_at), provider
+        ORDER BY date ASC, provider ASC
+        """
+    )
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
+
+
+async def get_total_cost_since(start_date: str) -> float:
+    """Get the total estimated cost since a given date (YYYY-MM-DD format)."""
+    db = await get_db()
+    cursor = await db.execute(
+        """
+        SELECT SUM(estimated_cost) FROM analytics
+        WHERE created_at >= ? AND estimated_cost > 0
+        """,
+        (start_date,)
+    )
+    total_cost = (await cursor.fetchone())[0]
+    return total_cost if total_cost is not None else 0.0
+
+
+async def get_total_cost_by_provider() -> list[dict]:
+    """Get the total estimated cost grouped by provider."""
+    db = await get_db()
+    cursor = await db.execute(
+        """
+        SELECT 
+            provider, 
+            SUM(estimated_cost) AS total_cost
+        FROM analytics
+        WHERE estimated_cost > 0
+        GROUP BY provider
+        ORDER BY total_cost DESC
+        """
+    )
+    rows = await cursor.fetchall()
+    return [dict(row) for row in rows]
 
 
 # --- Conversation helpers ---

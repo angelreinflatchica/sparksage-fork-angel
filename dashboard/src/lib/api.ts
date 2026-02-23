@@ -30,6 +30,10 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   return res.json();
 }
 
+export function getApiUrl(path: string): string {
+  return `${API_URL}${path}`;
+}
+
 // Response types matching backend
 export interface ProviderItem {
   name: string;
@@ -129,13 +133,25 @@ export interface ChannelProviderUpdate {
 
 export interface AnalyticsSummary {
   total_events: number;
-  total_tokens: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_estimated_cost: number;
   avg_latency_ms: number;
-  providers: { provider: string; count: number }[];
+  providers_by_events: { provider: string; count: number }[];
+  providers_by_cost: { provider: string; total_cost: number }[];
 }
 
 export interface AnalyticsHistory {
-  daily: { day: string; messages: number; total_events: number; avg_latency: number }[];
+  daily: { 
+    day: string; 
+    messages: number; 
+    total_events: number; 
+    total_input_tokens: number;
+    total_output_tokens: number;
+    total_estimated_cost: number;
+    avg_latency: number 
+  }[];
+  cost_per_provider_per_day: { day: string; provider: string; daily_cost: number }[];
   top_channels: { channel_id: string; count: number }[];
 }
 

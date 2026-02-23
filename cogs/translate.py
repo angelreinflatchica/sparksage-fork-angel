@@ -38,7 +38,7 @@ class Translate(commands.Cog):
         
         try:
             import asyncio
-            response, provider_name, tokens, latency = await asyncio.to_thread(
+            response, provider_name, input_tokens, output_tokens, estimated_cost, latency = await asyncio.to_thread(
                 providers.chat, [{"role": "user", "content": prompt}], "You are a professional translator."
             )
             
@@ -49,7 +49,9 @@ class Translate(commands.Cog):
                 channel_id=str(interaction.channel_id),
                 user_id=str(interaction.user.id),
                 provider=provider_name,
-                tokens_used=tokens,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                estimated_cost=estimated_cost,
                 latency_ms=latency
             )
 
@@ -96,7 +98,7 @@ class Translate(commands.Cog):
 
         try:
             import asyncio
-            response, provider_name, tokens, latency = await asyncio.to_thread(
+            response, provider_name, input_tokens, output_tokens, estimated_cost, latency = await asyncio.to_thread(
                 providers.chat, [{"role": "user", "content": prompt}], "You are a multilingual auto-translator."
             )
             
@@ -110,7 +112,9 @@ class Translate(commands.Cog):
                 channel_id=str(message.channel.id),
                 user_id=str(message.author.id),
                 provider=provider_name,
-                tokens_used=tokens,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                estimated_cost=estimated_cost,
                 latency_ms=latency
             )
 

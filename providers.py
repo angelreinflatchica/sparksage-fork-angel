@@ -149,9 +149,12 @@ def chat(messages: list[dict], system_prompt: str, override_primary: str | None 
             text = response.choices[0].message.content
             
             # OpenAI SDK provides usage
-            tokens = response.usage.total_tokens if hasattr(response, "usage") and response.usage else 0
+            input_tokens = response.usage.prompt_tokens if hasattr(response, "usage") and response.usage else 0
+            output_tokens = response.usage.completion_tokens if hasattr(response, "usage") and response.usage else 0
             
-            return text, provider_name, tokens, latency
+            estimated_cost = calculate_cost(provider_name, input_tokens, output_tokens)
+            
+            return text, provider_name, input_tokens, output_tokens, estimated_cost, latency
 
         except Exception as e:
             errors.append(f"{provider['name']}: {e}")
@@ -159,3 +162,16 @@ def chat(messages: list[dict], system_prompt: str, override_primary: str | None 
 
     error_details = "\n".join(errors)
     raise RuntimeError(f"All providers failed:\n{error_details}")
+
+
+def calculate_cost(provider_name: str, input_tokens: int, output_tokens: int) -> float:
+    """Calculate the estimated cost for a given provider and token usage."""
+    provider_info = config.PROVIDERS.get(provider_name)
+    if not provider_info or provider_info.get("free"):
+        return 0.0
+
+    input_cost = (input_tokens / 1_000_000) * provider_info.get("input_cost_per_million_tokens", 0.0)
+    output_cost = (output_tokens / 1_000_000) * provider_info.get("output_cost_per_million_tokens", 0.0)
+    
+    return input_cost + output_cost
+

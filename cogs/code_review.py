@@ -38,18 +38,21 @@ Code:
 
         # Call AI provider
         import asyncio
-        response, provider_name, tokens, latency = await asyncio.to_thread(
+        response, provider_name, input_tokens, output_tokens, latency = await asyncio.to_thread(
             providers.chat,
             [{"role": "user", "content": prompt}],
             config.SYSTEM_PROMPT
         )
+        estimated_cost = providers.calculate_cost(provider_name, input_tokens, output_tokens)
         await database.record_event(
             "command",
             guild_id=str(interaction.guild_id) if interaction.guild_id else None,
             channel_id=str(interaction.channel_id),
             user_id=str(interaction.user.id),
             provider=provider_name,
-            tokens_used=tokens,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost=estimated_cost,
             latency_ms=latency
         )
 

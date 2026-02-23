@@ -11,19 +11,33 @@ async def get_analytics_summary(user: dict = Depends(get_current_user)):
     """Return high-level analytics summary."""
     database = await db.get_db()
     
-    # Total messages/events
+    # Total events
     cursor = await database.execute("SELECT COUNT(*) as count FROM analytics")
     total_events = (await cursor.fetchone())["count"]
     
-    # Total tokens
-    cursor = await database.execute("SELECT SUM(tokens_used) as total FROM analytics")
-    total_tokens = (await cursor.fetchone())["total"] or 0
+    # Total input tokens
+    cursor = await database.execute("SELECT SUM(input_tokens) as total FROM analytics")
+    total_input_tokens = (await cursor.fetchone())["total"] or 0
+
+    # Total output tokens
+    cursor = await database.execute("SELECT SUM(output_tokens) as total FROM analytics")
+    total_output_tokens = (await cursor.fetchone())["total"] or 0
+
+    # Total estimated cost
+    cursor = await database.execute("SELECT SUM(estimated_cost) as total FROM analytics")
+    total_estimated_cost = (await cursor.fetchone())["total"] or 0.0
     
-    # Provider distribution
+    # Provider distribution by event count
     cursor = await database.execute(
         "SELECT provider, COUNT(*) as count FROM analytics GROUP BY provider"
     )
-    providers = [dict(row) for row in await cursor.fetchall()]
+    providers_by_events = [dict(row) for row in await cursor.fetchall()]
+
+    # Provider distribution by cost
+    cursor = await database.execute(
+        "SELECT provider, SUM(estimated_cost) as total_cost FROM analytics GROUP BY provider ORDER BY total_cost DESC"
+    )
+    providers_by_cost = [dict(row) for row in await cursor.fetchall()]
     
     # Avg latency
     cursor = await database.execute("SELECT AVG(latency_ms) as avg FROM analytics")
@@ -31,9 +45,12 @@ async def get_analytics_summary(user: dict = Depends(get_current_user)):
     
     return {
         "total_events": total_events,
-        "total_tokens": total_tokens,
+        "total_input_tokens": total_input_tokens,
+        "total_output_tokens": total_output_tokens,
+        "total_estimated_cost": round(total_estimated_cost, 4),
         "avg_latency_ms": round(avg_latency, 2),
-        "providers": providers
+        "providers_by_events": providers_by_events,
+        "providers_by_cost": providers_by_cost,
     }
 
 @router.get("/history")
@@ -41,13 +58,16 @@ async def get_analytics_history(days: int = 7, user: dict = Depends(get_current_
     """Return historical data for charts, specifically tracking message volume."""
     database = await db.get_db()
     
-    # Messages per day (mentions and commands)
+    # Daily stats
     cursor = await database.execute(
         """
         SELECT 
             date(created_at) as day, 
             COUNT(CASE WHEN event_type IN ('mention', 'command') THEN 1 END) as messages,
             COUNT(*) as total_events,
+            SUM(input_tokens) as total_input_tokens,
+            SUM(output_tokens) as total_output_tokens,
+            SUM(estimated_cost) as total_estimated_cost,
             AVG(latency_ms) as avg_latency
         FROM analytics 
         WHERE created_at > date('now', ?)
@@ -57,6 +77,22 @@ async def get_analytics_history(days: int = 7, user: dict = Depends(get_current_
         (f"-{days} days",)
     )
     daily_stats = [dict(row) for row in await cursor.fetchall()]
+
+    # Cost per provider per day
+    cursor = await database.execute(
+        """
+        SELECT 
+            date(created_at) as day,
+            provider,
+            SUM(estimated_cost) as daily_cost
+        FROM analytics
+        WHERE created_at > date('now', ?) AND provider IS NOT NULL AND estimated_cost > 0
+        GROUP BY day, provider
+        ORDER BY day ASC, daily_cost DESC
+        """,
+        (f"-{days} days",)
+    )
+    cost_per_provider_per_day = [dict(row) for row in await cursor.fetchall()]
     
     # Top channels by message volume
     cursor = await database.execute(
@@ -73,6 +109,7 @@ async def get_analytics_history(days: int = 7, user: dict = Depends(get_current_
     
     return {
         "daily": daily_stats,
+        "cost_per_provider_per_day": cost_per_provider_per_day,
         "top_channels": top_channels
     }
 

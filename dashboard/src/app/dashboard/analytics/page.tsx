@@ -72,7 +72,7 @@ export default function AnalyticsPage() {
   const hasData = summary && summary.total_events > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Analytics</h1>
         <Button variant="outline" size="sm" onClick={loadData}>
@@ -93,8 +93,7 @@ export default function AnalyticsPage() {
         </Card>
       ) : (
         <>
-          {/* Top Stats */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Requests</CardTitle>
@@ -108,15 +107,37 @@ export default function AnalyticsPage() {
             
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Tokens Used</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Input Tokens</CardTitle>
                 <Zap className="h-4 w-4 text-amber-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{summary?.total_tokens.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">Cumulative token usage</p>
+                <div className="text-2xl font-bold">{summary?.total_input_tokens.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">Cumulative tokens sent to AI</p>
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Output Tokens</CardTitle>
+                <Zap className="h-4 w-4 text-emerald-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{summary?.total_output_tokens.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">Cumulative tokens received from AI</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Est. Cost</CardTitle>
+                <TrendingUp className="h-4 w-4 text-red-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">${summary?.total_estimated_cost.toFixed(2)}</div>
+                <p className="text-xs text-muted-foreground">Cumulative estimated AI cost</p>
+              </CardContent>
+            </Card>
+            
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Avg Latency</CardTitle>
@@ -127,20 +148,9 @@ export default function AnalyticsPage() {
                 <p className="text-xs text-muted-foreground">Average response time</p>
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Providers</CardTitle>
-                <BarChart3 className="h-4 w-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{summary?.providers.length}</div>
-                <p className="text-xs text-muted-foreground">Models utilized</p>
-              </CardContent>
-            </Card>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {/* Daily Activity Chart */}
             <Card>
               <CardHeader>
@@ -157,6 +167,7 @@ export default function AnalyticsPage() {
                       dataKey="day" 
                       tickFormatter={(val) => {
                         try {
+                          // eslint-disable-next-line react/no-unescaped-entities
                           return new Date(val).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
                         } catch {
                           return val;
@@ -182,38 +193,105 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
 
-            {/* Provider Distribution */}
+            {/* Daily Cost Chart */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <PieChartIcon className="h-4 w-4" /> Provider Distribution
+                  <BarChart3 className="h-4 w-4" /> Daily Estimated Cost
                 </CardTitle>
-                <CardDescription>Usage split across models.</CardDescription>
+                <CardDescription>Estimated cost per day over the last 14 days.</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px] pt-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={history?.daily}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis 
+                      dataKey="day" 
+                      tickFormatter={(val) => {
+                        try {
+                          // eslint-disable-next-line react/no-unescaped-entities
+                          return new Date(val).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+                        } catch {
+                          return val;
+                        }
+                      }}
+                      fontSize={12}
+                    />
+                    <YAxis 
+                      tickFormatter={(val) => `$${val.toFixed(2)}`}
+                      fontSize={12} 
+                    />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                      formatter={(value: number | undefined) => value !== undefined ? `$${value.toFixed(4)}` : 'N/A'}
+                    />
+                    <Bar 
+                      dataKey="total_estimated_cost" 
+                      name="Estimated Cost" 
+                      fill="hsl(var(--primary))" 
+                      radius={[4, 4, 0, 0]} 
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            {/* Provider Cost Distribution */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <PieChartIcon className="h-4 w-4" /> Provider Cost Distribution
+                </CardTitle>
+                <CardDescription>Cost split across models.</CardDescription>
               </CardHeader>
               <CardContent className="h-[300px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={summary?.providers}
+                      data={summary?.providers_by_cost.filter(p => p.total_cost > 0)}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
                       outerRadius={80}
                       paddingAngle={5}
-                      dataKey="count"
+                      dataKey="total_cost"
                       nameKey="provider"
                     >
-                      {summary?.providers.map((entry, index) => (
+                      {summary?.providers_by_cost.filter(p => p.total_cost > 0).map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip 
                       contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                      formatter={(value: number, name: string) => [`${value.toLocaleString()} requests`, name]}
+                      formatter={(value: number | undefined, name: string | undefined) => {
+                        const formattedValue = value !== undefined ? `$${value.toFixed(4)}` : 'N/A';
+                        const formattedName = name !== undefined ? name : 'N/A';
+                        return [formattedValue, formattedName];
+                      }}
                     />
                     <Legend formatter={(value: string) => value.charAt(0).toUpperCase() + value.slice(1)} />
                   </PieChart>
                 </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Projected Monthly Cost */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" /> Projected Monthly Cost
+                </CardTitle>
+                <CardDescription>Estimated cost for the current month.</CardDescription>
+              </CardHeader>
+              <CardContent className="h-[100px] pt-4 flex items-center justify-center">
+                <p className="text-4xl font-bold">
+                  ${(summary?.total_estimated_cost && summary.total_events > 0) 
+                    ? ((summary.total_estimated_cost / summary.total_events) * 30 * (summary.total_events / (history?.daily.length || 1))).toFixed(2)
+                    : "0.00"
+                  }
+                </p>
               </CardContent>
             </Card>
 
@@ -238,7 +316,9 @@ export default function AnalyticsPage() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
+          </div>
 
+          <div className="grid gap-6 md:grid-cols-1">
             {/* Latency History */}
             <Card>
               <CardHeader>
@@ -253,6 +333,7 @@ export default function AnalyticsPage() {
                       dataKey="day" 
                       tickFormatter={(val) => {
                         try {
+                          // eslint-disable-next-line react/no-unescaped-entities
                           return new Date(val).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
                         } catch {
                           return val;
@@ -283,7 +364,15 @@ export default function AnalyticsPage() {
 }
 
 // Helper Button component
-function Button({ children, variant, size, onClick, className }: any) {
+interface AnalyticsButtonProps {
+  children: React.ReactNode;
+  variant?: "default" | "outline";
+  size?: "sm" | "default";
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  className?: string;
+}
+
+function Button({ children, variant, size, onClick, className }: AnalyticsButtonProps) {
   const base = "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 h-9 px-3 text-xs";
   const vClass = variant === "outline" ? "border border-input bg-background hover:bg-accent hover:text-accent-foreground" : "bg-primary text-primary-foreground hover:bg-primary/90";
   

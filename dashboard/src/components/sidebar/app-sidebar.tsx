@@ -18,6 +18,9 @@ import {
   Languages,
   BarChart3,
   Puzzle,
+  DollarSign,
+  Sun,
+  Moon,
 } from "lucide-react";
 import {
   Sidebar,
@@ -32,36 +35,70 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useTheme } from "next-themes";
+import { ClientOnly } from "@/components/client-only";
 
 const NAV_ITEMS = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { title: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
+  { title: "Cost Tracking", href: "/dashboard/cost-tracking", icon: DollarSign },
   { title: "Providers", href: "/dashboard/providers", icon: Cpu },
   { title: "FAQs", href: "/dashboard/faq", icon: MessageSquare },
   { title: "Onboarding", href: "/dashboard/onboarding", icon: Users },
   { title: "Permissions", href: "/dashboard/permissions", icon: Shield },
   { title: "Daily Digest", href: "/dashboard/digest", icon: Calendar },
   { title: "Moderation", href: "/dashboard/moderation", icon: ShieldAlert },
-  { title: "Translation", href: "/dashboard/translate", icon: Languages },
+
   { title: "Plugins", href: "/dashboard/plugins", icon: Puzzle },
-  { title: "Prompts", href: "/dashboard/prompts", icon: MessageSquare },
-  { title: "Channel Providers", href: "/dashboard/channel-providers", icon: Cpu },
+
+
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
   { title: "Conversations", href: "/dashboard/conversations", icon: MessageSquare },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { setTheme } = useTheme();
 
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Zap className="h-4 w-4" />
+        <ClientOnly>
+          <div className="flex items-center gap-2 px-2 py-1">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Zap className="h-4 w-4" />
+            </div>
+            <span className="font-semibold">SparkSage</span>
+            <div className="ml-auto">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                    <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                    <span className="sr-only">Toggle theme</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setTheme("light")}>
+                    Light
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme("dark")}>
+                    Dark
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTheme("system")}>
+                    System
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
-          <span className="font-semibold">SparkSage</span>
-        </div>
+        </ClientOnly>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

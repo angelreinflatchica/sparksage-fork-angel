@@ -26,13 +26,14 @@ class ModerationView(discord.ui.View):
 
     @discord.ui.button(label="Delete Message", style=discord.ButtonStyle.danger, custom_id="mod_delete")
     async def delete_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
         channel = interaction.guild.get_channel(self.channel_id)
         if channel:
             try:
                 msg = await channel.fetch_message(self.original_msg_id)
                 await msg.delete()
                 await database.update_mod_stat(str(self.original_msg_id), "deleted")
-                await interaction.response.send_message("Message deleted.", ephemeral=True)
+                await interaction.followup.send("Message deleted.", ephemeral=True)
                 
                 # Update the mod log message
                 embed = interaction.message.embeds[0]
@@ -42,35 +43,46 @@ class ModerationView(discord.ui.View):
             except discord.NotFound:
                 await interaction.response.send_message("Message already deleted.", ephemeral=True)
             except Exception as e:
-                await interaction.response.send_message(f"Error: {e}", ephemeral=True)
+                import traceback
+                traceback.print_exc()
+                await interaction.followup.send(f"Error: {e}", ephemeral=True)
 
     @discord.ui.button(label="Warn User", style=discord.ButtonStyle.secondary, custom_id="mod_warn")
     async def warn_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
         try:
             user = await interaction.guild.fetch_member(self.user_id)
             if user:
                 reason = interaction.message.embeds[0].fields[0].value
                 await user.send(f"⚠️ **Warning from {interaction.guild.name}**\nYour message was flagged and removed for: {reason}")
                 await database.update_mod_stat(str(self.original_msg_id), "warned")
-                await interaction.response.send_message(f"User {user.display_name} warned.", ephemeral=True)
+                await interaction.followup.send(f"User {user.display_name} warned.", ephemeral=True)
                 
                 # Update mod log
                 embed = interaction.message.embeds[0]
                 embed.title = f"✅ Handled: User Warned"
                 await interaction.message.edit(embed=embed, view=None)
         except Exception as e:
-            await interaction.response.send_message(f"Could not warn user: {e}", ephemeral=True)
+            import traceback
+            traceback.print_exc()
+            await interaction.followup.send(f"Could not warn user: {e}", ephemeral=True)
 
     @discord.ui.button(label="Dismiss", style=discord.ButtonStyle.success, custom_id="mod_dismiss")
     async def dismiss_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await database.update_mod_stat(str(self.original_msg_id), "dismissed")
-        await interaction.response.send_message("Flag dismissed.", ephemeral=True)
-        
-        # Update mod log
-        embed = interaction.message.embeds[0]
-        embed.color = discord.Color.green()
-        embed.title = f"✅ Handled: Dismissed"
-        await interaction.message.edit(embed=embed, view=None)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            await database.update_mod_stat(str(self.original_msg_id), "dismissed")
+            await interaction.followup.send("Flag dismissed.", ephemeral=True)
+            
+            # Update mod log
+            embed = interaction.message.embeds[0]
+            embed.color = discord.Color.green()
+            embed.title = f"✅ Handled: Dismissed"
+            await interaction.message.edit(embed=embed, view=None)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            await interaction.followup.send(f"Error dismissing flag: {e}", ephemeral=True)
 
 
 class Moderation(commands.Cog):
@@ -115,7 +127,7 @@ class Moderation(commands.Cog):
         )
 
         try:
-            response, provider_name, tokens, latency = providers.chat([{"role": "user", "content": prompt}], "You are a professional Discord moderator assistant.")
+            response, provider_name, input_tokens, output_tokens, estimated_cost, latency = providers.chat([{"role": "user", "content": prompt}], "You are a professional Discord moderator assistant.")
             
             # Record analytics for moderation scan
             await database.record_event(
@@ -124,7 +136,9 @@ class Moderation(commands.Cog):
                 channel_id=str(message.channel.id),
                 user_id=str(message.author.id),
                 provider=provider_name,
-                tokens_used=tokens,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                estimated_cost=estimated_cost,
                 latency_ms=latency
             )
 

@@ -43,10 +43,7 @@ class PluginManager:
             print(f"DEBUG: In sync_commands, self.bot.tree: {self.bot.tree}")
             
             # Use asyncio.run_coroutine_threadsafe to run the sync on the bot's event loop
-            future = asyncio.run_coroutine_threadsafe(
-                self.bot._sync_commands_on_loop(guild_id), self.bot.loop
-            )
-            success, message = future.result() # This will block until the coroutine on the bot's loop completes
+            success, message = await self.bot._sync_commands_on_loop(guild_id)
 
             if success:
                 logger.info(f"Synced commands (guild_id: {guild_id})")

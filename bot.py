@@ -72,11 +72,11 @@ class SparkSageBot(commands.Bot):
                 guild = self.get_guild(guild_id)
                 if guild:
                     self.tree.copy_global_to(guild=guild)
-                    await self.tree.sync(guild=guild)
+                    await asyncio.create_task(self.tree.sync(guild=guild))
                     return True, ""
                 return False, f"Guild {guild_id} not found."
             else:
-                await self.tree.sync()
+                await asyncio.create_task(self.tree.sync())
                 return True, ""
         except Exception as e:
             return False, str(e)
@@ -102,10 +102,12 @@ async def ask_ai(channel_id: int, user_name: str, message: str, guild_id: int | 
 
     try:
         # Run blocking chat in thread
-        response, provider_name, tokens, latency = await asyncio.to_thread(
+        response, provider_name, input_tokens, output_tokens, latency = await asyncio.to_thread(
             providers.chat, history, active_prompt, override_primary=channel_provider
         )
         
+        estimated_cost = providers.calculate_cost(provider_name, input_tokens, output_tokens)
+
         # Record analytics
         await database.record_event(
             event_type="mention",
@@ -113,7 +115,9 @@ async def ask_ai(channel_id: int, user_name: str, message: str, guild_id: int | 
             channel_id=str(channel_id),
             user_id=str(user_id) if user_id else None,
             provider=provider_name,
-            tokens_used=tokens,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            estimated_cost=estimated_cost,
             latency_ms=latency
         )
 

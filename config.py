@@ -83,6 +83,8 @@ def _build_providers() -> dict:
             "api_key": GEMINI_API_KEY,
             "model": GEMINI_MODEL,
             "free": True,
+            "input_cost_per_million_tokens": 0.0,
+            "output_cost_per_million_tokens": 0.0,
         },
         "groq": {
             "name": "Groq",
@@ -90,6 +92,8 @@ def _build_providers() -> dict:
             "api_key": GROQ_API_KEY,
             "model": GROQ_MODEL,
             "free": True,
+            "input_cost_per_million_tokens": 0.0,
+            "output_cost_per_million_tokens": 0.0,
         },
         "openrouter": {
             "name": "OpenRouter",
@@ -97,6 +101,8 @@ def _build_providers() -> dict:
             "api_key": OPENROUTER_API_KEY,
             "model": OPENROUTER_MODEL,
             "free": True,
+            "input_cost_per_million_tokens": 0.0,
+            "output_cost_per_million_tokens": 0.0,
         },
         "anthropic": {
             "name": "Anthropic Claude",
@@ -104,6 +110,8 @@ def _build_providers() -> dict:
             "api_key": ANTHROPIC_API_KEY,
             "model": ANTHROPIC_MODEL,
             "free": False,
+            "input_cost_per_million_tokens": 8.0,  # Example cost
+            "output_cost_per_million_tokens": 24.0, # Example cost
         },
         "openai": {
             "name": "OpenAI",
@@ -111,6 +119,8 @@ def _build_providers() -> dict:
             "api_key": OPENAI_API_KEY,
             "model": OPENAI_MODEL,
             "free": False,
+            "input_cost_per_million_tokens": 0.5, # Example cost
+            "output_cost_per_million_tokens": 1.5, # Example cost
         },
     }
 

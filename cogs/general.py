@@ -34,16 +34,19 @@ class General(commands.Cog):
         try:
             # providers.chat is synchronous, so we run it in a thread to avoid blocking
             import asyncio
-            response, provider_name, tokens, latency = await asyncio.to_thread(
+            response, provider_name, input_tokens, output_tokens, estimated_cost, latency = await asyncio.to_thread(
                 providers.chat, history, active_prompt, override_primary=channel_provider
             )
+            estimated_cost = providers.calculate_cost(provider_name, input_tokens, output_tokens)
             await database.record_event(
                 "command",
                 guild_id=str(guild_id) if guild_id else None,
                 channel_id=str(channel_id),
                 user_id=str(user_id),
                 provider=provider_name,
-                tokens_used=tokens,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                estimated_cost=estimated_cost,
                 latency_ms=latency
             )
             # Store assistant response in DB
