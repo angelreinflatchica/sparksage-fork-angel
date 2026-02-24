@@ -72,11 +72,11 @@ class SparkSageBot(commands.Bot):
                 guild = self.get_guild(guild_id)
                 if guild:
                     self.tree.copy_global_to(guild=guild)
-                    await asyncio.create_task(self.tree.sync(guild=guild))
+                    await self.tree.sync(guild=guild)
                     return True, ""
                 return False, f"Guild {guild_id} not found."
             else:
-                await asyncio.create_task(self.tree.sync())
+                await self.tree.sync()
                 return True, ""
         except Exception as e:
             return False, str(e)
@@ -102,11 +102,9 @@ async def ask_ai(channel_id: int, user_name: str, message: str, guild_id: int | 
 
     try:
         # Run blocking chat in thread
-        response, provider_name, input_tokens, output_tokens, latency = await asyncio.to_thread(
+        response, provider_name, input_tokens, output_tokens, estimated_cost, latency = await asyncio.to_thread(
             providers.chat, history, active_prompt, override_primary=channel_provider
         )
-        
-        estimated_cost = providers.calculate_cost(provider_name, input_tokens, output_tokens)
 
         # Record analytics
         await database.record_event(
@@ -126,6 +124,22 @@ async def ask_ai(channel_id: int, user_name: str, message: str, guild_id: int | 
         return response, provider_name
     except Exception as e:
         return f"Sorry, AI request failed: {e}", "none"
+
+
+@bot.event
+async def on_command_error(ctx, error):
+    """Silently ignore unknown prefix commands to avoid noisy tracebacks.
+
+    Users often type plain words after mentioning the bot (e.g., "@SparkSage hello").
+    `when_mentioned_or` treats the mention as a prefix and attempts to find a
+    command named "hello". Ignore `CommandNotFound` to suppress expected noise.
+    """
+    from discord.ext.commands import CommandNotFound
+
+    if isinstance(error, CommandNotFound):
+        return
+    # For other errors, re-raise so default logging still occurs
+    raise error
 
 
 def get_bot_status() -> dict:
