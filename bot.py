@@ -71,6 +71,11 @@ class SparkSageBot(commands.Bot):
             if guild_id:
                 guild = self.get_guild(guild_id)
                 if guild:
+                    # Clear existing guild commands first to prevent duplicates
+                    try:
+                        self.tree.clear_commands(guild=guild)
+                    except Exception:
+                        pass
                     self.tree.copy_global_to(guild=guild)
                     await self.tree.sync(guild=guild)
                     return True, ""
@@ -236,12 +241,32 @@ async def debug(ctx):
     loaded_cogs = list(bot.cogs.keys())
     slash_commands = [cmd.name for cmd in bot.tree.get_commands()]
     extensions = list(bot.extensions.keys())
-    
+    # Fetch commands as registered on Discord (global and guild) to inspect duplicates
+    try:
+        global_cmds = await bot.tree.fetch_commands()
+    except Exception:
+        global_cmds = []
+
+    try:
+        guild_cmds = await bot.tree.fetch_commands(guild=ctx.guild)
+    except Exception:
+        guild_cmds = []
+
+    def fmt(cmd):
+        try:
+            return f"{cmd.name}({getattr(cmd, 'id', 'no-id')})"
+        except Exception:
+            return str(cmd)
+
     msg = f"**Debug Info:**\n"
     msg += f"- **Prefix:** `{config.BOT_PREFIX}`\n"
+    msg += f"- **Bot User ID:** `{bot.user.id if bot.user else 'unknown'}`\n"
+    msg += f"- **Application ID:** `{bot.application_id}`\n"
     msg += f"- **Cogs:** `{', '.join(loaded_cogs)}`\n"
     msg += f"- **Extensions:** `{', '.join(extensions)}`\n"
-    msg += f"- **Slash Commands Tree:** `{', '.join(slash_commands)}`"
+    msg += f"- **Slash Commands (local tree):** `{', '.join(slash_commands)}`\n"
+    msg += f"- **Global Commands ({len(global_cmds)}):** `{', '.join([fmt(c) for c in global_cmds])}`\n"
+    msg += f"- **Guild Commands ({len(guild_cmds)}):** `{', '.join([fmt(c) for c in guild_cmds])}`"
     await ctx.send(msg)
 
 

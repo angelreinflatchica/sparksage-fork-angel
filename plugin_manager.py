@@ -41,9 +41,17 @@ class PluginManager:
         try:
             print(f"DEBUG: In sync_commands, self.bot: {self.bot}")
             print(f"DEBUG: In sync_commands, self.bot.tree: {self.bot.tree}")
-            
-            # Use asyncio.run_coroutine_threadsafe to run the sync on the bot's event loop
-            success, message = await self.bot._sync_commands_on_loop(guild_id)
+
+            # Schedule the bot's sync helper to run on the bot's event loop.
+            # We must run discord.py calls on the bot's loop rather than the API server
+            # loop to avoid "Timeout context manager should be used inside a task" errors.
+            try:
+                fut = asyncio.run_coroutine_threadsafe(self.bot._sync_commands_on_loop(guild_id), self.bot.loop)
+                # Convert concurrent.futures.Future into an awaitable asyncio.Future
+                success, message = await asyncio.wrap_future(fut)
+            except Exception as e:
+                print(f"❌ Exception while scheduling sync on bot loop: {e}")
+                raise
 
             if success:
                 logger.info(f"Synced commands (guild_id: {guild_id})")
