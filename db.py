@@ -112,6 +112,18 @@ async def init_db():
             created_at TEXT DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS ai_feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id TEXT NOT NULL UNIQUE,
+            channel_id TEXT NOT NULL,
+            guild_id TEXT,
+            helpful INTEGER NOT NULL,  -- 1 for helpful, 0 for not helpful
+            user_id TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_feedback_channel ON ai_feedback(channel_id);
+        CREATE INDEX IF NOT EXISTS idx_feedback_guild ON ai_feedback(guild_id);
+
         -- Add new columns to existing analytics table if they don't exist
         PRAGMA table_info(analytics); -- To check for existing columns
         INSERT INTO config (key, value) VALUES ('db_version', '1') ON CONFLICT(key) DO UPDATE SET value=excluded.value;
@@ -482,6 +494,51 @@ async def delete_session(token: str):
     db = await get_db()
     await db.execute("DELETE FROM sessions WHERE token = ?", (token,))
     await db.commit()
+
+
+# --- AI Feedback helpers ---
+
+
+async def record_feedback(message_id: str, channel_id: str, guild_id: str | None, helpful: int, user_id: str | None = None):
+    """Record feedback (helpful=1 or 0) for an AI response."""
+    db = await get_db()
+    await db.execute(
+        "INSERT INTO ai_feedback (message_id, channel_id, guild_id, helpful, user_id) VALUES (?, ?, ?, ?, ?) ON CONFLICT(message_id) DO UPDATE SET helpful=excluded.helpful",
+        (message_id, channel_id, guild_id, helpful, user_id),
+    )
+    await db.commit()
+
+
+async def get_helpfulness_rating() -> float:
+    """Get overall helpfulness rating as a percentage (0-100)."""
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT COUNT(*) as total, SUM(helpful) as helpful FROM ai_feedback WHERE helpful IS NOT NULL"
+    )
+    row = await cursor.fetchone()
+    if row:
+        total = row["total"] or 0
+        helpful = row["helpful"] or 0
+        if total == 0:
+            return 0.0
+        return (helpful / total) * 100
+    return 0.0
+
+
+async def get_feedback_stats() -> dict:
+    """Get detailed feedback statistics."""
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT helpful, COUNT(*) as count FROM ai_feedback GROUP BY helpful"
+    )
+    rows = await cursor.fetchall()
+    stats = {"helpful": 0, "not_helpful": 0}
+    for row in rows:
+        if row["helpful"] == 1:
+            stats["helpful"] = row["count"]
+        elif row["helpful"] == 0:
+            stats["not_helpful"] = row["count"]
+    return stats
 
 
 async def close_db():

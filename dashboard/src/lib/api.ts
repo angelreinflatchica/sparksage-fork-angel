@@ -155,6 +155,13 @@ export interface AnalyticsHistory {
   top_channels: { channel_id: string; count: number }[];
 }
 
+export interface HelpfulnessRating {
+  helpfulness_rating: number;
+  helpful_count: number;
+  not_helpful_count: number;
+  total_feedback: number;
+}
+
 export interface PluginItem {
   id: string;
   name: string;
@@ -309,6 +316,9 @@ export const api = {
 
   getAnalyticsHistory: (token: string, days: number = 7) =>
     apiFetch<AnalyticsHistory>(`/api/analytics/history?days=${days}`, { token }),
+
+  getHelpfulnessRating: (token: string) =>
+    apiFetch<HelpfulnessRating>("/api/analytics/helpfulness", { token }),
 
   // Plugins
   getPlugins: (token: string) =>

@@ -48,6 +48,7 @@ class SparkSageBot(commands.Bot):
             "cogs.prompts",
             "cogs.channel_providers",
             "cogs.plugins",
+            "cogs.feedback",
         ]
         for cog in cogs:
             try:

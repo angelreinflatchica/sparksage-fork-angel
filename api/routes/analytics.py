@@ -146,3 +146,15 @@ async def get_analytics_test_data(user: dict = Depends(get_current_user)):
             ]
         }
     }
+@router.get("/helpfulness")
+async def get_helpfulness_rating(user: dict = Depends(get_current_user)):
+    """Return AI helpfulness rating and feedback stats."""
+    helpfulness_rating = await db.get_helpfulness_rating()
+    feedback_stats = await db.get_feedback_stats()
+    
+    return {
+        "helpfulness_rating": round(helpfulness_rating, 1),
+        "helpful_count": feedback_stats["helpful"],
+        "not_helpful_count": feedback_stats["not_helpful"],
+        "total_feedback": feedback_stats["helpful"] + feedback_stats["not_helpful"]
+    }

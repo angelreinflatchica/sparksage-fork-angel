@@ -9,9 +9,10 @@ import {
   Activity, 
   Zap, 
   Clock, 
-  TrendingUp 
+  TrendingUp,
+  Smile
 } from "lucide-react";
-import { api, AnalyticsSummary, AnalyticsHistory } from "@/lib/api";
+import { api, AnalyticsSummary, AnalyticsHistory, HelpfulnessRating } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 import { 
@@ -37,6 +38,7 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [history, setHistory] = useState<AnalyticsHistory | null>(null);
+  const [helpfulness, setHelpfulness] = useState<HelpfulnessRating | null>(null);
 
   const token = (session as { accessToken?: string })?.accessToken;
 
@@ -48,12 +50,14 @@ export default function AnalyticsPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [summaryData, historyData] = await Promise.all([
+      const [summaryData, historyData, helpfulnessData] = await Promise.all([
         api.getAnalyticsSummary(token!),
         api.getAnalyticsHistory(token!, 14),
+        api.getHelpfulnessRating(token!),
       ]);
       setSummary(summaryData);
       setHistory(historyData);
+      setHelpfulness(helpfulnessData);
     } catch (err) {
       toast.error("Failed to load analytics data");
     } finally {
@@ -93,7 +97,7 @@ export default function AnalyticsPage() {
         </Card>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Requests</CardTitle>
@@ -148,6 +152,17 @@ export default function AnalyticsPage() {
                 <p className="text-xs text-muted-foreground">Average response time</p>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">AI Helpfulness</CardTitle>
+                <Smile className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{helpfulness?.helpfulness_rating ?? 0}%</div>
+                <p className="text-xs text-muted-foreground">{helpfulness?.total_feedback || 0} responses rated</p>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -161,7 +176,13 @@ export default function AnalyticsPage() {
               </CardHeader>
               <CardContent className="h-[300px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={history?.daily}>
+                  <LineChart data={history?.daily} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.01}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis 
                       dataKey="day" 
@@ -184,9 +205,13 @@ export default function AnalyticsPage() {
                       dataKey="messages" 
                       name="Messages"
                       stroke="hsl(var(--primary))" 
-                      strokeWidth={2}
-                      dot={{ r: 4 }}
-                      activeDot={{ r: 6 }}
+                      strokeWidth={4}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      isAnimationActive={false}
+                      dot={{ r: 6, fill: "hsl(var(--primary))", strokeWidth: 2, stroke: "white" }}
+                      activeDot={{ r: 8, fill: "hsl(var(--primary))" }}
+                      fill="url(#colorMessages)"
                     />
                   </LineChart>
                 </ResponsiveContainer>
