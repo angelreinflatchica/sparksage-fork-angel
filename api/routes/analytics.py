@@ -97,10 +97,10 @@ async def get_analytics_history(days: int = 7, user: dict = Depends(get_current_
     # Top channels by message volume
     cursor = await database.execute(
         """
-        SELECT channel_id, COUNT(*) as count 
+        SELECT channel_id, channel_name, COUNT(*) as count 
         FROM analytics 
         WHERE event_type IN ('mention', 'command')
-        GROUP BY channel_id 
+        GROUP BY channel_id, channel_name
         ORDER BY count DESC 
         LIMIT 5
         """
@@ -138,6 +138,8 @@ async def get_analytics_test_data(user: dict = Depends(get_current_user)):
                 {"day": "2026-02-20", "count": 350, "avg_latency": 1350}
             ],
             "top_channels": [
+            {"channel_id": "12345", "channel_name": "general", "count": 120},
+            {"channel_id": "67890", "channel_name": "random", "count": 85},
                 {"channel_id": "General", "count": 500},
                 {"channel_id": "Bot-spam", "count": 300},
                 {"channel_id": "Dev", "count": 200},

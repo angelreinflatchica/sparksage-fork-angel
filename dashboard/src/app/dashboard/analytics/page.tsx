@@ -324,7 +324,14 @@ export default function AnalyticsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Top Channels</CardTitle>
-                <CardDescription>Most active Discord channels.</CardDescription>
+                <CardDescription>
+                  Most active Discord channels.
+                  {history?.top_channels && history.top_channels.length > 0 && (
+                    <span className="block mt-1 text-sm">
+                      Leading: #{history.top_channels[0].channel_name || history.top_channels[0].channel_id}
+                    </span>
+                  )}
+                </CardDescription>
               </CardHeader>
               <CardContent className="h-[300px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
@@ -334,7 +341,10 @@ export default function AnalyticsPage() {
                     <YAxis fontSize={12} />
                     <Tooltip 
                       contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                      labelFormatter={(val) => `Channel: ${val}`}
+                      labelFormatter={(val) => {
+                        const top = history?.top_channels?.find(c => c.channel_id === val);
+                        return `Channel: ${top?.channel_name ?? val}`;
+                      }}
                     />
                     <Bar dataKey="count" name="Count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                   </BarChart>

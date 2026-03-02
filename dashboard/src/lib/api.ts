@@ -152,7 +152,7 @@ export interface AnalyticsHistory {
     avg_latency: number 
   }[];
   cost_per_provider_per_day: { day: string; provider: string; daily_cost: number }[];
-  top_channels: { channel_id: string; count: number }[];
+  top_channels: { channel_id: string; channel_name?: string; count: number }[];
 }
 
 export interface HelpfulnessRating {

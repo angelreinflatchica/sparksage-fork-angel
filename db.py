@@ -102,6 +102,7 @@ async def init_db():
             event_type TEXT NOT NULL,     -- 'command', 'mention', 'faq', 'moderation'
             guild_id TEXT,
             channel_id TEXT,
+            channel_name TEXT,
             user_id TEXT,
             provider TEXT,
             tokens_used INTEGER DEFAULT 0,
@@ -124,12 +125,6 @@ async def init_db():
         CREATE INDEX IF NOT EXISTS idx_feedback_channel ON ai_feedback(channel_id);
         CREATE INDEX IF NOT EXISTS idx_feedback_guild ON ai_feedback(guild_id);
 
-        -- Add new columns to existing analytics table if they don't exist
-        PRAGMA table_info(analytics); -- To check for existing columns
-        INSERT INTO config (key, value) VALUES ('db_version', '1') ON CONFLICT(key) DO UPDATE SET value=excluded.value;
-        
-
-
         CREATE TABLE IF NOT EXISTS plugins (
             id          TEXT PRIMARY KEY, -- The folder name/slug
             name        TEXT NOT NULL,
@@ -143,6 +138,13 @@ async def init_db():
         INSERT OR IGNORE INTO wizard_state (id) VALUES (1);
         """
     )
+    await db.commit()
+
+    # migration: ensure analytics has channel_name column
+    cursor = await db.execute("PRAGMA table_info(analytics)")
+    existing = [row[1] for row in await cursor.fetchall()]
+    if "channel_name" not in existing:
+        await db.execute("ALTER TABLE analytics ADD COLUMN channel_name TEXT")
     await db.commit()
 
 
@@ -272,6 +274,7 @@ async def record_event(
     event_type: str,
     guild_id: str | None = None,
     channel_id: str | None = None,
+    channel_name: str | None = None,
     user_id: str | None = None,
     provider: str | None = None,
     input_tokens: int = 0,
@@ -282,9 +285,9 @@ async def record_event(
     """Record an event in the analytics table."""
     db = await get_db()
     await db.execute(
-        "INSERT INTO analytics (event_type, guild_id, channel_id, user_id, provider, input_tokens, output_tokens, estimated_cost, latency_ms) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (event_type, guild_id, channel_id, user_id, provider, input_tokens, output_tokens, estimated_cost, latency_ms),
+        "INSERT INTO analytics (event_type, guild_id, channel_id, channel_name, user_id, provider, input_tokens, output_tokens, estimated_cost, latency_ms) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (event_type, guild_id, channel_id, channel_name, user_id, provider, input_tokens, output_tokens, estimated_cost, latency_ms),
     )
     await db.commit()
 

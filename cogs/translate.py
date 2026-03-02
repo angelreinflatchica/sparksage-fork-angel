@@ -43,10 +43,13 @@ class Translate(commands.Cog):
             )
             
             # Record analytics
+            ch_obj = self.bot.get_channel(interaction.channel_id)
+            ch_name = ch_obj.name if ch_obj else None
             await database.record_event(
                 event_type="command",
                 guild_id=str(interaction.guild_id),
                 channel_id=str(interaction.channel_id),
+                channel_name=ch_name,
                 user_id=str(interaction.user.id),
                 provider=provider_name,
                 input_tokens=input_tokens,
@@ -106,10 +109,13 @@ class Translate(commands.Cog):
                 return
 
             # Record analytics
+            ch_obj = self.bot.get_channel(message.channel.id)
+            ch_name = ch_obj.name if ch_obj else None
             await database.record_event(
                 event_type="translate_auto",
                 guild_id=str(message.guild.id),
                 channel_id=str(message.channel.id),
+                channel_name=ch_name,
                 user_id=str(message.author.id),
                 provider=provider_name,
                 input_tokens=input_tokens,

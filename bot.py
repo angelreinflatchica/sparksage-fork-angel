@@ -113,10 +113,13 @@ async def ask_ai(channel_id: int, user_name: str, message: str, guild_id: int | 
         )
 
         # Record analytics
+        ch_obj = bot.get_channel(channel_id)
+        ch_name = ch_obj.name if ch_obj else None
         await database.record_event(
             event_type="mention",
             guild_id=str(guild_id) if guild_id else None,
             channel_id=str(channel_id),
+            channel_name=ch_name,
             user_id=str(user_id) if user_id else None,
             provider=provider_name,
             input_tokens=input_tokens,

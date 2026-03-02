@@ -130,10 +130,13 @@ class Moderation(commands.Cog):
             response, provider_name, input_tokens, output_tokens, estimated_cost, latency = providers.chat([{"role": "user", "content": prompt}], "You are a professional Discord moderator assistant.")
             
             # Record analytics for moderation scan
+            ch_obj = self.bot.get_channel(message.channel.id)
+            ch_name = ch_obj.name if ch_obj else None
             await database.record_event(
                 event_type="moderation",
                 guild_id=str(message.guild.id),
                 channel_id=str(message.channel.id),
+                channel_name=ch_name,
                 user_id=str(message.author.id),
                 provider=provider_name,
                 input_tokens=input_tokens,

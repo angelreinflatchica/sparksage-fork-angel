@@ -38,10 +38,14 @@ class General(commands.Cog):
                 providers.chat, history, active_prompt, override_primary=channel_provider
             )
             estimated_cost = providers.calculate_cost(provider_name, input_tokens, output_tokens)
+            # include channel name for analytics
+            ch_obj = self.bot.get_channel(channel_id)
+            ch_name = ch_obj.name if ch_obj else None
             await database.record_event(
                 "command",
                 guild_id=str(guild_id) if guild_id else None,
                 channel_id=str(channel_id),
+                channel_name=ch_name,
                 user_id=str(user_id),
                 provider=provider_name,
                 input_tokens=input_tokens,

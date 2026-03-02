@@ -43,10 +43,13 @@ Code:
             [{"role": "user", "content": prompt}],
             config.SYSTEM_PROMPT
         )
+        ch_obj = self.bot.get_channel(interaction.channel_id)
+        ch_name = ch_obj.name if ch_obj else None
         await database.record_event(
             "command",
             guild_id=str(interaction.guild_id) if interaction.guild_id else None,
             channel_id=str(interaction.channel_id),
+            channel_name=ch_name,
             user_id=str(interaction.user.id),
             provider=provider_name,
             input_tokens=input_tokens,

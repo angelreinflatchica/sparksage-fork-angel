@@ -68,7 +68,7 @@ class Digest(commands.Cog):
             return
 
         # Collect activity from the last 24 hours
-        yesterday = datetime.datetime.now() - datetime.timedelta(days=1)
+        yesterday = datetime.datetime.utcnow() - datetime.timedelta(days=1)
         active_channels = await database.list_channels()
         
         # We'll filter and summarize the top 5 most active channels
@@ -88,7 +88,7 @@ class Digest(commands.Cog):
                         recent_messages.append({"role": m["role"], "content": m["content"]})
                 except (ValueError, KeyError):
                     continue
-
+            
             if not recent_messages:
                 continue
                 
@@ -100,18 +100,19 @@ class Digest(commands.Cog):
             try:
                 # Use providers.chat with history as context
                 import asyncio
-                response, provider_name, input_tokens, output_tokens, latency = await asyncio.to_thread(
+                response, provider_name, input_tokens, output_tokens, estimated_cost, latency = await asyncio.to_thread(
                     providers.chat, recent_messages, prompt
                 )
                 summary_sections.append(f"### #{ch_name}\n{response}")
                 
-                estimated_cost = providers.calculate_cost(provider_name, input_tokens, output_tokens)
-
                 # Record analytics for each channel summary
+                ch_obj = self.bot.get_channel(int(ch_id))
+                ch_name = ch_obj.name if ch_obj else None
                 await database.record_event(
                     event_type="digest",
                     guild_id=str(target_channel.guild.id),
                     channel_id=str(ch_id),
+                    channel_name=ch_name,
                     provider=provider_name,
                     input_tokens=input_tokens,
                     output_tokens=output_tokens,
