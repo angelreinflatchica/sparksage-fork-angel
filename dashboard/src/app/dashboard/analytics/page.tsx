@@ -30,6 +30,7 @@ import {
   Cell, 
   Legend 
 } from "recharts";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
 
@@ -96,8 +97,13 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       ) : (
-        <>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+        <Tabs defaultValue="overview" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="cost">Cost Overview</TabsTrigger>
+          </TabsList>
+          <TabsContent value="overview">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Requests</CardTitle>
@@ -167,7 +173,7 @@ export default function AnalyticsPage() {
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {/* Daily Activity Chart */}
-            <Card>
+            <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" /> Messages Per Day
@@ -200,6 +206,7 @@ export default function AnalyticsPage() {
                     <Tooltip 
                       contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                     />
+                    {/* primary area+line (fill provides gradient) */}
                     <Line 
                       type="monotone" 
                       dataKey="messages" 
@@ -213,86 +220,51 @@ export default function AnalyticsPage() {
                       activeDot={{ r: 8, fill: "hsl(var(--primary))" }}
                       fill="url(#colorMessages)"
                     />
+                    {/* extra line over area to clearly connect points */}
+                    <Line
+                      type="monotone"
+                      dataKey="messages"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={false}
+                      isAnimationActive={false}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
 
-            {/* Daily Cost Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" /> Daily Estimated Cost
-                </CardTitle>
-                <CardDescription>Estimated cost per day over the last 14 days.</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[300px] pt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={history?.daily}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis 
-                      dataKey="day" 
-                      tickFormatter={(val) => {
-                        try {
-                          // eslint-disable-next-line react/no-unescaped-entities
-                          return new Date(val).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-                        } catch {
-                          return val;
-                        }
-                      }}
-                      fontSize={12}
-                    />
-                    <YAxis 
-                      tickFormatter={(val) => `$${val.toFixed(2)}`}
-                      fontSize={12} 
-                    />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                      formatter={(value: number | undefined) => value !== undefined ? `$${value.toFixed(4)}` : 'N/A'}
-                    />
-                    <Bar 
-                      dataKey="total_estimated_cost" 
-                      name="Estimated Cost" 
-                      fill="hsl(var(--primary))" 
-                      radius={[4, 4, 0, 0]} 
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
 
-            {/* Provider Cost Distribution */}
+
+            {/* Provider Usage Chart */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <PieChartIcon className="h-4 w-4" /> Provider Cost Distribution
+                  <PieChartIcon className="h-4 w-4" /> Provider Usage
                 </CardTitle>
-                <CardDescription>Cost split across models.</CardDescription>
+                <CardDescription>Frequency of each provider being used.</CardDescription>
               </CardHeader>
               <CardContent className="h-[300px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={summary?.providers_by_cost.filter(p => p.total_cost > 0)}
+                      data={summary?.providers_by_events.filter(p => p.count > 0) || []}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
                       outerRadius={80}
                       paddingAngle={5}
-                      dataKey="total_cost"
+                      dataKey="count"
                       nameKey="provider"
                     >
-                      {summary?.providers_by_cost.filter(p => p.total_cost > 0).map((entry, index) => (
+                      {(summary?.providers_by_events.filter(p => p.count > 0) || []).map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip 
                       contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                      formatter={(value: number | undefined, name: string | undefined) => {
-                        const formattedValue = value !== undefined ? `$${value.toFixed(4)}` : 'N/A';
-                        const formattedName = name !== undefined ? name : 'N/A';
-                        return [formattedValue, formattedName];
-                      }}
+                      formatter={(value: number | undefined) => value !== undefined ? `${value} uses` : 'N/A'}
                     />
                     <Legend formatter={(value: string) => value.charAt(0).toUpperCase() + value.slice(1)} />
                   </PieChart>
@@ -300,27 +272,7 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
           </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            {/* Projected Monthly Cost */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" /> Projected Monthly Cost
-                </CardTitle>
-                <CardDescription>Estimated cost for the current month.</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[100px] pt-4 flex items-center justify-center">
-                <p className="text-4xl font-bold">
-                  ${(summary?.total_estimated_cost && summary.total_events > 0) 
-                    ? ((summary.total_estimated_cost / summary.total_events) * 30 * (summary.total_events / (history?.daily.length || 1))).toFixed(2)
-                    : "0.00"
-                  }
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Top Channels */}
+          
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Top Channels</CardTitle>
@@ -351,7 +303,7 @@ export default function AnalyticsPage() {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-          </div>
+
 
           <div className="grid gap-6 md:grid-cols-1">
             {/* Latency History */}
@@ -392,7 +344,110 @@ export default function AnalyticsPage() {
               </CardContent>
             </Card>
           </div>
-        </>
+          </TabsContent>
+          {/* cost tab content moved here */}
+          <TabsContent value="cost">
+            <div className="grid gap-6 md:grid-cols-2">
+              {/* Provider Cost Distribution */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <PieChartIcon className="h-4 w-4" /> Provider Cost Distribution
+                  </CardTitle>
+                  <CardDescription>Cost split across models.</CardDescription>
+                </CardHeader>
+                <CardContent className="h-[300px] pt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={summary?.providers_by_cost.filter(p => p.total_cost > 0)}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="total_cost"
+                        nameKey="provider"
+                      >
+                        {summary?.providers_by_cost.filter(p => p.total_cost > 0).map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                        formatter={(value: number | undefined, name: string | undefined) => {
+                          const formattedValue = value !== undefined ? `$${value.toFixed(4)}` : 'N/A';
+                          const formattedName = name !== undefined ? name : 'N/A';
+                          return [formattedValue, formattedName];
+                        }}
+                      />
+                      <Legend formatter={(value: string) => value.charAt(0).toUpperCase() + value.slice(1)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+              {/* Projected Monthly Cost */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" /> Projected Monthly Cost
+                  </CardTitle>
+                  <CardDescription>Estimated cost for the current month.</CardDescription>
+                </CardHeader>
+                <CardContent className="h-[100px] pt-4 flex items-center justify-center">
+                  <p className="text-4xl font-bold">
+                    ${(summary?.total_estimated_cost && summary.total_events > 0) 
+                      ? ((summary.total_estimated_cost / summary.total_events) * 30 * (summary.total_events / (history?.daily.length || 1))).toFixed(2)
+                      : "0.00"
+                    }
+                  </p>
+                </CardContent>
+              </Card>
+              {/* Daily Cost Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" /> Daily Estimated Cost
+                  </CardTitle>
+                  <CardDescription>Estimated cost per day over the last 14 days.</CardDescription>
+                </CardHeader>
+                <CardContent className="h-[300px] pt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={history?.daily}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis 
+                        dataKey="day" 
+                        tickFormatter={(val) => {
+                          try {
+                            // eslint-disable-next-line react/no-unescaped-entities
+                            return new Date(val).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+                          } catch {
+                            return val;
+                          }
+                        }}
+                        fontSize={12}
+                      />
+                      <YAxis 
+                        tickFormatter={(val) => `$${val.toFixed(2)}`}
+                        fontSize={12} 
+                      />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                        formatter={(value: number | undefined) => value !== undefined ? `$${value.toFixed(4)}` : 'N/A'}
+                      />
+                      <Bar 
+                        dataKey="total_estimated_cost" 
+                        name="Estimated Cost" 
+                        fill="hsl(var(--primary))" 
+                        radius={[4, 4, 0, 0]} 
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );
