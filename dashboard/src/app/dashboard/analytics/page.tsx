@@ -183,12 +183,7 @@ export default function AnalyticsPage() {
               <CardContent className="h-[300px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={history?.daily} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                    <defs>
-                      <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.01}/>
-                      </linearGradient>
-                    </defs>
+
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis 
                       dataKey="day" 
@@ -206,28 +201,15 @@ export default function AnalyticsPage() {
                     <Tooltip 
                       contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                     />
-                    {/* primary area+line (fill provides gradient) */}
-                    <Line 
-                      type="monotone" 
-                      dataKey="messages" 
-                      name="Messages"
-                      stroke="hsl(var(--primary))" 
-                      strokeWidth={4}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      isAnimationActive={false}
-                      dot={{ r: 6, fill: "hsl(var(--primary))", strokeWidth: 2, stroke: "white" }}
-                      activeDot={{ r: 8, fill: "hsl(var(--primary))" }}
-                      fill="url(#colorMessages)"
-                    />
+
                     {/* extra line over area to clearly connect points */}
                     <Line
                       type="monotone"
                       dataKey="messages"
                       stroke="hsl(var(--primary))"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={false}
+                      strokeWidth={3}
+                      dot={{ r: 5, fill: "hsl(var(--primary))", strokeWidth: 2, stroke: "white" }}
+                      activeDot={{ r: 7, fill: "hsl(var(--primary))" }}
                       isAnimationActive={false}
                     />
                   </LineChart>
