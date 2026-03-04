@@ -10,7 +10,6 @@ build/
 *.db
 *.db-journal
 *.db-wal
-*.db-shm
 dashboard/node_modules/
 dashboard/.next/
 dashboard/.env.local
