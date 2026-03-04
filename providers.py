@@ -8,7 +8,7 @@ import config
 def _create_client(provider_name: str) -> OpenAI | None:
     """Create an OpenAI-compatible client for the given provider."""
     provider = config.PROVIDERS.get(provider_name)
-    if not provider or not provider["api_key"]:
+    if not provider or not provider.get("api_key") or not provider["api_key"].strip(): # Check for None or empty string
         return None
 
     extra_headers = {}
@@ -18,11 +18,15 @@ def _create_client(provider_name: str) -> OpenAI | None:
         extra_headers["HTTP-Referer"] = "https://github.com/google/gemini-cli"
         extra_headers["X-Title"] = "SparkSage Bot"
 
-    return OpenAI(
-        base_url=provider["base_url"],
-        api_key=provider["api_key"],
-        default_headers=extra_headers or None,
-    )
+    try: # Added try-except block
+        return OpenAI(
+            base_url=provider["base_url"],
+            api_key=provider["api_key"],
+            default_headers=extra_headers or None,
+        )
+    except Exception as e:
+        print(f"ERROR: Failed to create OpenAI client for {provider_name}: {e}")
+        return None
 
 
 def _build_fallback_order() -> list[str]:
@@ -39,9 +43,12 @@ def _build_clients() -> dict[str, OpenAI]:
     """Build clients for all configured providers."""
     clients = {}
     for name in set([config.AI_PROVIDER] + config.FREE_FALLBACK_CHAIN + list(config.PROVIDERS.keys())):
-        client = _create_client(name)
-        if client:
-            clients[name] = client
+        try:
+            client = _create_client(name)
+            if client:
+                clients[name] = client
+        except Exception as e:
+            print(f"ERROR: Failed to build client for {name} during module load: {e}")
     return clients
 
 
@@ -62,7 +69,7 @@ def get_available_providers() -> list[str]:
     return [name for name in FALLBACK_ORDER if name in _clients]
 
 
-def test_provider(name: str, api_key: str | None = None) -> dict:
+async def test_provider(name: str, api_key: str | None = None) -> dict:
     """Test a provider with a minimal API call. Returns {success, message, latency_ms}.
     
     If api_key is provided, it tests that specific key instead of the saved one.
@@ -71,6 +78,7 @@ def test_provider(name: str, api_key: str | None = None) -> dict:
     if not provider_info:
         return {"success": False, "latency_ms": 0, "message": f"Unknown provider: {name}"}
 
+    client = None # Initialize client to None
     # If a specific key is provided (e.g. from the wizard), create a temporary client
     if api_key:
         extra_headers = {}
@@ -92,10 +100,14 @@ def test_provider(name: str, api_key: str | None = None) -> dict:
             client = _create_client(name)
             if not client:
                 return {"success": False, "latency_ms": 0, "message": "No API key configured"}
+    
+    # Ensure client was successfully created/retrieved before proceeding
+    if not client:
+        return {"success": False, "latency_ms": 0, "message": "Failed to initialize provider client"}
 
     start = time.time()
     try:
-        response = client.chat.completions.create(
+        response = await client.chat.completions.create(
             model=provider_info["model"],
             max_tokens=10,
             messages=[{"role": "user", "content": "Hi"}],
@@ -110,10 +122,8 @@ def test_provider(name: str, api_key: str | None = None) -> dict:
             error_msg = "Invalid API key"
         elif "connection" in error_msg.lower():
             error_msg = "Connection failed"
-            
+
         return {"success": False, "latency_ms": latency, "message": error_msg}
-
-
 def chat(messages: list[dict], system_prompt: str, override_primary: str | None = None) -> tuple[str, str, int, int]:
     """Send messages to AI and return (response_text, provider_name, tokens_used, latency_ms).
 
@@ -145,6 +155,7 @@ def chat(messages: list[dict], system_prompt: str, override_primary: str | None 
                     *messages,
                 ],
             )
+            print(f"--- Provider: {provider_name}, Response usage: {getattr(response, 'usage', 'N/A')} ---")
             latency = int((time.time() - start_time) * 1000)
             text = response.choices[0].message.content
             

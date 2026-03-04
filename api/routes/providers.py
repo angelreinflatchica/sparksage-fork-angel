@@ -37,7 +37,7 @@ class TestProviderRequest(BaseModel):
 
 @router.post("/test")
 async def test_provider(body: TestProviderRequest, user: dict = Depends(get_current_user)):
-    result = providers.test_provider(body.provider, body.api_key)
+    result = await providers.test_provider(body.provider, body.api_key)
     return result
 
 
