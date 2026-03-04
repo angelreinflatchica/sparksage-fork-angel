@@ -28,9 +28,12 @@ import {
   PieChart, 
   Pie, 
   Cell, 
-  Legend 
+  Legend,
+  AreaChart, 
+  Area
 } from "recharts";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Tabs components are no longer needed
+// import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; 
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
 
@@ -97,13 +100,8 @@ export default function AnalyticsPage() {
           </CardContent>
         </Card>
       ) : (
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="cost">Cost Overview</TabsTrigger>
-          </TabsList>
-          <TabsContent value="overview">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6">
+        <div className="space-y-4"> {/* Replaced Tabs with a simple div */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6 mb-6">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Requests</CardTitle>
@@ -171,7 +169,7 @@ export default function AnalyticsPage() {
             </Card>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-6">
             {/* Daily Activity Chart */}
             <Card className="lg:col-span-2">
               <CardHeader>
@@ -182,8 +180,13 @@ export default function AnalyticsPage() {
               </CardHeader>
               <CardContent className="h-[300px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={history?.daily} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-
+                  <AreaChart data={history?.daily} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                    <defs>
+                      <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis 
                       dataKey="day" 
@@ -202,6 +205,15 @@ export default function AnalyticsPage() {
                       contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
                     />
 
+                    {/* Area for messages */}
+                    <Area
+                      type="monotone"
+                      dataKey="messages"
+                      stroke="hsl(var(--primary))"
+                      fill="url(#colorUv)"
+                      fillOpacity={1}
+                      isAnimationActive={false}
+                    />
                     {/* extra line over area to clearly connect points */}
                     <Line
                       type="monotone"
@@ -211,8 +223,9 @@ export default function AnalyticsPage() {
                       dot={{ r: 5, fill: "hsl(var(--primary))", strokeWidth: 2, stroke: "white" }}
                       activeDot={{ r: 7, fill: "hsl(var(--primary))" }}
                       isAnimationActive={false}
+                      hide={true} // Hide this line from the tooltip
                     />
-                  </LineChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
@@ -255,7 +268,7 @@ export default function AnalyticsPage() {
             </Card>
           </div>
           
-            <Card>
+            <Card className="mb-6">
               <CardHeader>
                 <CardTitle className="text-base">Top Channels</CardTitle>
                 <CardDescription>
@@ -271,131 +284,46 @@ export default function AnalyticsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={history?.top_channels}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="channel_id" fontSize={10} hide />
+                    <XAxis 
+                      dataKey="channel_name" 
+                      fontSize={10} 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={60} // Give more space for rotated labels
+                      interval={0} // Show all labels
+                    />
                     <YAxis fontSize={12} />
                     <Tooltip 
                       contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                      labelFormatter={(val) => {
-                        const top = history?.top_channels?.find(c => c.channel_id === val);
-                        return `Channel: ${top?.channel_name ?? val}`;
-                      }}
+                      formatter={(value: number | undefined) => value !== undefined ? `${value} messages` : 'N/A'}
+                      labelFormatter={(label) => `Channel: ${label}`}
                     />
-                    <Bar dataKey="count" name="Count" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar 
+                      dataKey="count" 
+                      name="Messages" 
+                      radius={[4, 4, 0, 0]}
+                    >
+                      {
+                        history?.top_channels?.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill="#000000" />
+                        ))
+                      }
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
 
-
-          <div className="grid gap-6 md:grid-cols-1">
-            {/* Latency History */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Latency Trend</CardTitle>
-                <CardDescription>Avg response time (ms) per day.</CardDescription>
-              </CardHeader>
-              <CardContent className="h-[300px] pt-4">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={history?.daily}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis 
-                      dataKey="day" 
-                      tickFormatter={(val) => {
-                        try {
-                          // eslint-disable-next-line react/no-unescaped-entities
-                          return new Date(val).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-                        } catch {
-                          return val;
-                        }
-                      }}
-                      fontSize={12}
-                    />
-                    <YAxis fontSize={12} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="avg_latency" 
-                      name="Latency (ms)"
-                      stroke="#FFBB28" 
-                      strokeWidth={2}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-          </TabsContent>
-          {/* cost tab content moved here */}
-          <TabsContent value="cost">
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Provider Cost Distribution */}
+            <div className="grid gap-6 md:grid-cols-1">
+              {/* Latency History */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <PieChartIcon className="h-4 w-4" /> Provider Cost Distribution
-                  </CardTitle>
-                  <CardDescription>Cost split across models.</CardDescription>
+                  <CardTitle className="text-base">Latency Trend</CardTitle>
+                  <CardDescription>Avg response time (ms) per day.</CardDescription>
                 </CardHeader>
                 <CardContent className="h-[300px] pt-4">
                   <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={summary?.providers_by_cost.filter(p => p.total_cost > 0)}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="total_cost"
-                        nameKey="provider"
-                      >
-                        {summary?.providers_by_cost.filter(p => p.total_cost > 0).map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                        formatter={(value: number | undefined, name: string | undefined) => {
-                          const formattedValue = value !== undefined ? `$${value.toFixed(4)}` : 'N/A';
-                          const formattedName = name !== undefined ? name : 'N/A';
-                          return [formattedValue, formattedName];
-                        }}
-                      />
-                      <Legend formatter={(value: string) => value.charAt(0).toUpperCase() + value.slice(1)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-              {/* Projected Monthly Cost */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4" /> Projected Monthly Cost
-                  </CardTitle>
-                  <CardDescription>Estimated cost for the current month.</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[100px] pt-4 flex items-center justify-center">
-                  <p className="text-4xl font-bold">
-                    ${(summary?.total_estimated_cost && summary.total_events > 0) 
-                      ? ((summary.total_estimated_cost / summary.total_events) * 30 * (summary.total_events / (history?.daily.length || 1))).toFixed(2)
-                      : "0.00"
-                    }
-                  </p>
-                </CardContent>
-              </Card>
-              {/* Daily Cost Chart */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4" /> Daily Estimated Cost
-                  </CardTitle>
-                  <CardDescription>Estimated cost per day over the last 14 days.</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[300px] pt-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={history?.daily}>
+                    <LineChart data={history?.daily}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} />
                       <XAxis 
                         dataKey="day" 
@@ -409,27 +337,23 @@ export default function AnalyticsPage() {
                         }}
                         fontSize={12}
                       />
-                      <YAxis 
-                        tickFormatter={(val) => `$${val.toFixed(2)}`}
-                        fontSize={12} 
-                      />
+                      <YAxis fontSize={12} />
                       <Tooltip 
                         contentStyle={{ backgroundColor: 'hsl(var(--background))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                        formatter={(value: number | undefined) => value !== undefined ? `$${value.toFixed(4)}` : 'N/A'}
                       />
-                      <Bar 
-                        dataKey="total_estimated_cost" 
-                        name="Estimated Cost" 
-                        fill="hsl(var(--primary))" 
-                        radius={[4, 4, 0, 0]} 
+                      <Line 
+                        type="monotone" 
+                        dataKey="avg_latency" 
+                        name="Latency (ms)"
+                        stroke="#FFBB28" 
+                        strokeWidth={2}
                       />
-                    </BarChart>
+                    </LineChart>
                   </ResponsiveContainer>
                 </CardContent>
               </Card>
             </div>
-          </TabsContent>
-        </Tabs>
+        </div>
       )}
     </div>
   );
