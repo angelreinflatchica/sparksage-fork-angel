@@ -27,7 +27,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+    app.include_router(auth.router, tags=["auth"])
     app.include_router(config.router, prefix="/api/config", tags=["config"])
     app.include_router(providers.router, prefix="/api/providers", tags=["providers"])
     app.include_router(bot.router, prefix="/api/bot", tags=["bot"])
