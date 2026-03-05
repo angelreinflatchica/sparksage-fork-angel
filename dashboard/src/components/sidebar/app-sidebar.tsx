@@ -11,6 +11,16 @@ import {
   MessageSquare,
   Wand2,
   LogOut,
+  Users,
+  Shield,
+  Calendar,
+  ShieldAlert,
+  Languages,
+  BarChart3,
+  Puzzle,
+  DollarSign,
+  Sun,
+  Moon,
 } from "lucide-react";
 import {
   Sidebar,
@@ -25,26 +35,52 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { useTheme } from "next-themes";
+import { ClientOnly } from "@/components/client-only";
 
 const NAV_ITEMS = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { title: "Providers", href: "/dashboard/providers", icon: Cpu },
+  { title: "Cost Tracking", href: "/dashboard/cost-tracking", icon: DollarSign },
+
+  { title: "Onboarding", href: "/dashboard/onboarding", icon: Users },
+
+  { title: "Plugins", href: "/dashboard/plugins", icon: Puzzle },
+
+
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
   { title: "Conversations", href: "/dashboard/conversations", icon: MessageSquare },
+  { title: "FAQs", href: "/dashboard/faq", icon: MessageSquare },
+  { title: "Permissions", href: "/dashboard/permissions", icon: Shield },
 ];
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { setTheme, resolvedTheme } = useTheme();
 
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Zap className="h-4 w-4" />
+        <ClientOnly>
+          <div className="flex items-center gap-2 px-2 py-1">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <Zap className="h-4 w-4" />
+            </div>
+            <span className="font-semibold">SparkSage</span>
+            <div className="ml-auto">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+                aria-label="Toggle theme"
+              >
+                <Sun className={`h-[1.2rem] w-[1.2rem] transition-opacity ${resolvedTheme === "light" ? "opacity-100" : "opacity-0"}`} />
+                <Moon className={`absolute h-[1.2rem] w-[1.2rem] transition-opacity ${resolvedTheme === "dark" ? "opacity-100" : "opacity-0"}`} />
+              </Button>
+            </div>
           </div>
-          <span className="font-semibold">SparkSage</span>
-        </div>
+        </ClientOnly>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

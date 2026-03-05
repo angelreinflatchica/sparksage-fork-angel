@@ -18,6 +18,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 
   const res = await fetch(`${API_URL}${path}`, {
     headers,
+    cache: "no-store",
     ...rest,
   });
 
@@ -27,6 +28,10 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   }
 
   return res.json();
+}
+
+export function getApiUrl(path: string): string {
+  return `${API_URL}${path}`;
 }
 
 // Response types matching backend
@@ -57,17 +62,113 @@ export interface MessageItem {
   created_at: string;
 }
 
+export interface GuildInfo {
+  id: string;
+  name: string;
+  member_count: number;
+}
+
 export interface BotStatus {
   online: boolean;
-  latency: number | null;
-  guilds: number;
-  uptime: number | null;
+  username: string | null;
+  latency_ms: number | null;
+  guild_count: number;
+  guilds: GuildInfo[];
+  uptime?: number | null;
 }
 
 export interface TestProviderResult {
   success: boolean;
   message: string;
   latency_ms?: number;
+}
+
+export interface FAQItem {
+  id: number;
+  guild_id: string;
+  question: string;
+  answer: string;
+  match_keywords: string;
+  times_used: number;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface FAQCreate {
+  guild_id: string;
+  question: string;
+  answer: string;
+  match_keywords: string;
+}
+
+export interface PermissionItem {
+  command_name: string;
+  guild_id: string;
+  role_id: string;
+}
+
+export interface ChannelPromptItem {
+  channel_id: string;
+  guild_id: string;
+  system_prompt: string;
+}
+
+export interface ChannelPromptUpdate {
+  channel_id: string;
+  guild_id: string;
+  system_prompt: string;
+}
+
+export interface ChannelProviderItem {
+  channel_id: string;
+  guild_id: string;
+  provider: string;
+}
+
+export interface ChannelProviderUpdate {
+  channel_id: string;
+  guild_id: string;
+  provider: string;
+}
+
+export interface AnalyticsSummary {
+  total_events: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_estimated_cost: number;
+  avg_latency_ms: number;
+  providers_by_events: { provider: string; count: number }[];
+  providers_by_cost: { provider: string; total_cost: number }[];
+}
+
+export interface AnalyticsHistory {
+  daily: { 
+    day: string; 
+    messages: number; 
+    total_events: number; 
+    total_input_tokens: number;
+    total_output_tokens: number;
+    total_estimated_cost: number;
+    avg_latency: number 
+  }[];
+  cost_per_provider_per_day: { day: string; provider: string; daily_cost: number }[];
+  top_channels: { channel_id: string; channel_name?: string; count: number }[];
+}
+
+export interface HelpfulnessRating {
+  helpfulness_rating: number;
+  helpful_count: number;
+  not_helpful_count: number;
+  total_feedback: number;
+}
+
+export interface PluginItem {
+  id: string;
+  name: string;
+  version: string | null;
+  author: string | null;
+  description: string | null;
+  enabled: boolean;
 }
 
 export const api = {
@@ -79,7 +180,7 @@ export const api = {
     }),
 
   me: (token: string) =>
-    apiFetch<{ username: string; role: string }>("/api/auth/me", { token }),
+    apiFetch<{ user_id: string; role: string }>("/api/auth/me", { token }),
 
   // Config
   getConfig: (token: string) =>
@@ -96,10 +197,10 @@ export const api = {
   getProviders: (token: string) =>
     apiFetch<ProvidersResponse>("/api/providers", { token }),
 
-  testProvider: (token: string, provider: string) =>
+  testProvider: (token: string, provider: string, apiKey?: string) =>
     apiFetch<TestProviderResult>("/api/providers/test", {
       method: "POST",
-      body: JSON.stringify({ provider }),
+      body: JSON.stringify({ provider, api_key: apiKey }),
       token,
     }),
 
@@ -137,7 +238,108 @@ export const api = {
   completeWizard: (token: string, data: Record<string, string>) =>
     apiFetch<{ status: string }>("/api/wizard/complete", {
       method: "POST",
+      body: JSON.stringify({ config: data }),
+      token,
+    }),
+
+  // FAQs
+  getFAQs: (token: string) =>
+    apiFetch<FAQItem[]>("/api/faqs", { token }),
+
+  createFAQ: (token: string, data: FAQCreate) =>
+    apiFetch<FAQItem>("/api/faqs", {
+      method: "POST",
       body: JSON.stringify(data),
+      token,
+    }),
+
+  deleteFAQ: (token: string, id: number) =>
+    apiFetch<{ status: string }>(`/api/faqs/${id}`, {
+      method: "DELETE",
+      token,
+    }),
+
+  // Permissions
+  getPermissions: (token: string) =>
+    apiFetch<PermissionItem[]>("/api/permissions", { token }),
+
+  createPermission: (token: string, data: PermissionItem) =>
+    apiFetch<PermissionItem>("/api/permissions", {
+      method: "POST",
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  deletePermission: (token: string, command: string, guildId: string, roleId: string) =>
+    apiFetch<{ status: string }>(`/api/permissions/${command}/${guildId}/${roleId}`, {
+      method: "DELETE",
+      token,
+    }),
+
+  // Prompts
+  getChannelPrompts: (token: string) =>
+    apiFetch<ChannelPromptItem[]>("/api/prompts", { token }),
+
+  updateChannelPrompt: (token: string, data: ChannelPromptUpdate) =>
+    apiFetch<{ status: string }>("/api/prompts", {
+      method: "PUT",
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  deleteChannelPrompt: (token: string, channelId: string) =>
+    apiFetch<{ status: string }>(`/api/prompts/${channelId}`, {
+      method: "DELETE",
+      token,
+    }),
+
+  // Channel Providers
+  getChannelProviders: (token: string) =>
+    apiFetch<ChannelProviderItem[]>("/api/channel-providers", { token }),
+
+  updateChannelProvider: (token: string, data: ChannelProviderUpdate) =>
+    apiFetch<{ status: string }>("/api/channel-providers", {
+      method: "PUT",
+      body: JSON.stringify(data),
+      token,
+    }),
+
+  deleteChannelProvider: (token: string, channelId: string) =>
+    apiFetch<{ status: string }>(`/api/channel-providers/${channelId}`, {
+      method: "DELETE",
+      token,
+    }),
+
+  // Analytics
+  getAnalyticsSummary: (token: string) =>
+    apiFetch<AnalyticsSummary>("/api/analytics/summary", { token }),
+
+  getAnalyticsHistory: (token: string, days: number = 7) =>
+    apiFetch<AnalyticsHistory>(`/api/analytics/history?days=${days}`, { token }),
+
+  getHelpfulnessRating: (token: string) =>
+    apiFetch<HelpfulnessRating>("/api/analytics/helpfulness", { token }),
+
+  // Plugins
+  getPlugins: (token: string) =>
+    apiFetch<{ plugins: PluginItem[] }>("/api/plugins", { token }),
+
+  togglePlugin: (token: string, id: string, enabled: boolean) =>
+    apiFetch<{ status: string; enabled: boolean }>("/api/plugins/toggle", {
+      method: "POST",
+      body: JSON.stringify({ id, enabled }),
+      token,
+    }),
+
+  reloadPlugin: (token: string, id: string) =>
+    apiFetch<{ status: string }>(`/api/plugins/${id}/reload`, {
+      method: "POST",
+      token,
+    }),
+
+  syncPlugins: (token: string) =>
+    apiFetch<{ status: string }>("/api/plugins/sync", {
+      method: "POST",
       token,
     }),
 };

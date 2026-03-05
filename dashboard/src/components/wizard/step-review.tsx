@@ -32,17 +32,17 @@ export function StepReview() {
     try {
       // Build config payload
       const config: Record<string, string> = {
-        discord_token: data.discordToken,
-        ai_provider: data.primaryProvider,
-        bot_prefix: data.botPrefix,
-        max_tokens: String(data.maxTokens),
-        system_prompt: data.systemPrompt,
+        DISCORD_TOKEN: data.discordToken,
+        AI_PROVIDER: data.primaryProvider,
+        BOT_PREFIX: data.botPrefix,
+        MAX_TOKENS: String(data.maxTokens),
+        SYSTEM_PROMPT: data.systemPrompt,
       };
 
       // Add provider keys
       for (const [id, key] of Object.entries(data.providers)) {
         if (key) {
-          config[`${id}_api_key`] = key;
+          config[`${id.toUpperCase()}_API_KEY`] = key;
         }
       }
 

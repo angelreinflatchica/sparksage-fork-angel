@@ -1,0 +1,7 @@
+{
+  "name": "Trivia",
+  "version": "1.0.0",
+  "author": "SparkSage Community",
+  "description": "A fun trivia game plugin for your server.",
+  "cog": "trivia_cog.py"
+}

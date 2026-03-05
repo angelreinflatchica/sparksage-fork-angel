@@ -1,0 +1,3 @@
+"""Plugins package for SparkSage."""
+
+__all__ = ["trivia"]

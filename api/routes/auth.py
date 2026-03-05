@@ -6,22 +6,9 @@ from pydantic import BaseModel
 from api.auth import create_token, hash_password, verify_password
 from api.deps import get_current_user
 import db
+import config
 
 router = APIRouter()
-
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
-# Store hashed password on first use
-_hashed_admin_pw: str | None = None
-
-
-def _get_hashed_password() -> str:
-    """Get or create the hashed admin password."""
-    global _hashed_admin_pw
-    if _hashed_admin_pw is None:
-        pw = os.getenv("ADMIN_PASSWORD", "")
-        if pw:
-            _hashed_admin_pw = hash_password(pw)
-    return _hashed_admin_pw or ""
 
 
 class LoginRequest(BaseModel):
@@ -34,11 +21,11 @@ class TokenResponse(BaseModel):
     expires_at: str
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/api/auth/login", response_model=TokenResponse)
 async def login(body: LoginRequest):
-    admin_pw = os.getenv("ADMIN_PASSWORD", "")
+    admin_pw = config.ADMIN_PASSWORD
     if not admin_pw:
-        # If no password is set, check DB for one
+        # If no password is set in environment, check DB for one
         db_pw = await db.get_config("ADMIN_PASSWORD")
         if db_pw:
             admin_pw = db_pw
@@ -46,8 +33,14 @@ async def login(body: LoginRequest):
     if not admin_pw:
         raise HTTPException(status_code=400, detail="No admin password configured. Set ADMIN_PASSWORD in .env")
 
-    # Simple direct comparison for the env-based password
-    if body.password != admin_pw:
+    # Support both plain text and hashed passwords for flexibility
+    is_valid = False
+    if admin_pw and "$" in admin_pw:
+        is_valid = verify_password(body.password, admin_pw)
+    else:
+        is_valid = (body.password == admin_pw)
+
+    if not is_valid:
         raise HTTPException(status_code=401, detail="Invalid password")
 
     token, expires_at = create_token("admin")
