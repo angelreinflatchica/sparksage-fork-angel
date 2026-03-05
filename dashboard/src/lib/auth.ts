@@ -27,10 +27,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             id: "admin",
             name: "Admin",
             accessToken: data.access_token,
-            expires: data.expires_at,
           };
-        } catch (err) {
-          console.error("Authorize error:", err); 
+        } catch {
           return null;
         }
       },
@@ -40,7 +38,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.accessToken = (user as { accessToken: string }).accessToken;
-        token.expires = (user as { expires?: number }).expires;
       }
       return token;
     },
