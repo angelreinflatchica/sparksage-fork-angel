@@ -21,7 +21,7 @@ class TokenResponse(BaseModel):
     expires_at: str
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/api/auth/login", response_model=TokenResponse)
 async def login(body: LoginRequest):
     admin_pw = config.ADMIN_PASSWORD
     if not admin_pw:
