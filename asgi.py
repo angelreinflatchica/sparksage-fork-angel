@@ -1,7 +1,3 @@
-from fastapi import FastAPI
+from api.main import create_app
 
-app = FastAPI()
-
-@app.get("/")
-def root():
-    return {"message": "Hello from Railway!"}
+app = create_app()
