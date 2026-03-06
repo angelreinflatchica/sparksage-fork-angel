@@ -4,6 +4,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes import auth, config, providers, bot, conversations, wizard, faq, permissions, prompts, channel_providers, analytics, plugins, cost_tracking
 import db
 
+_bot_instance = None
+
+def set_bot_instance(bot):
+    global _bot_instance
+    _bot_instance = bot
+
+def get_bot_instance():
+    return _bot_instance
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
