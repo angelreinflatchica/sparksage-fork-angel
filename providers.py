@@ -107,7 +107,7 @@ async def test_provider(name: str, api_key: str | None = None) -> dict:
 
     start = time.time()
     try:
-        response = await client.chat.completions.create(
+        response = client.chat.completions.create(
             model=provider_info["model"],
             max_tokens=10,
             messages=[{"role": "user", "content": "Hi"}],
