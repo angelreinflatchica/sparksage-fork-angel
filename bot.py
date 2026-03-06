@@ -178,6 +178,9 @@ async def on_ready():
     print(f"Fallback chain: {' -> '.join(available)}")
     print(f"Commands loaded: {[cmd.name for cmd in bot.tree.get_commands()]}")
 
+    # Set bot presence
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=f"{config.BOT_PREFIX}help"))
+
 
 @bot.event
 async def on_message(message: discord.Message):
