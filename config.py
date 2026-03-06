@@ -62,7 +62,6 @@ TRANSLATE_AUTO_ENABLED = os.getenv("TRANSLATE_AUTO_ENABLED", "0")
 TRANSLATE_AUTO_CHANNEL_ID = os.getenv("TRANSLATE_AUTO_CHANNEL_ID", "")
 TRANSLATE_AUTO_TARGET = os.getenv("TRANSLATE_AUTO_TARGET", "English")
 
-# Rate Limiting
 RATE_LIMIT_USER = int(os.getenv("RATE_LIMIT_USER", "5"))
 RATE_LIMIT_GUILD = int(os.getenv("RATE_LIMIT_GUILD", "20"))
 # Dashboard settings

@@ -14,6 +14,8 @@ from cogs.channel_providers import get_channel_provider
 from utils.rate_limiter import limiter
 from plugin_manager import PluginManager
 
+import api.main # Import api.main
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True 
@@ -314,6 +316,7 @@ def main():
         print("Error: No AI providers configured. Add at least one API key to .env")
         return
 
+    api.main.set_bot_instance(bot)
     bot.run(config.DISCORD_TOKEN)
 
 
