@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 
 const settingsSchema = z.object({
   DISCORD_TOKEN: z.string().min(1, "Discord token is required"),
@@ -51,8 +52,24 @@ const DEFAULTS: SettingsForm = {
   RATE_LIMIT_GUILD: 20,
 };
 
+const SETTINGS_TABS = [
+  "general",
+  "translation",
+  "channel-providers",
+  "prompts",
+  "moderation",
+  "digest",
+] as const;
+
+type SettingsTab = (typeof SETTINGS_TABS)[number];
+
+function isSettingsTab(value: string | null): value is SettingsTab {
+  return value !== null && SETTINGS_TABS.includes(value as SettingsTab);
+}
+
 export default function SettingsPage() {
   const { data: session } = useSession();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   // Translation states
@@ -85,6 +102,9 @@ export default function SettingsPage() {
     resolver: zodResolver(settingsSchema),
     defaultValues: DEFAULTS,
   });
+
+  const tabFromQuery = searchParams.get("tab");
+  const activeTab: SettingsTab = isSettingsTab(tabFromQuery) ? tabFromQuery : "general";
 
   useEffect(() => {
     if (!token) return;
@@ -295,15 +315,7 @@ export default function SettingsPage() {
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="translation">Translation</TabsTrigger>
-            <TabsTrigger value="channel-providers">Channel Providers</TabsTrigger>
-            <TabsTrigger value="prompts">Prompts</TabsTrigger>
-            <TabsTrigger value="moderation">Moderation</TabsTrigger>
-            <TabsTrigger value="digest">Daily Digest</TabsTrigger>
-          </TabsList>
+        <Tabs value={activeTab} className="w-full">
 
           <TabsContent value="general" className="space-y-6">
             {/* Discord */}
@@ -527,7 +539,7 @@ export default function SettingsPage() {
                     <p>
                       SparkSage can automatically translate messages in a specific channel. 
                       It detects the language of incoming messages and translates them to your 
-                      target language if they don't already match.
+                      target language if they do not already match.
                     </p>
                     <p>
                       <strong>Tip:</strong> Users can also use the <code>/translate</code> command 

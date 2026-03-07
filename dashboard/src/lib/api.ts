@@ -63,6 +63,7 @@ export interface ProvidersResponse {
 
 export interface ChannelItem {
   channel_id: string;
+  channel_name?: string | null;
   message_count: number;
   last_active: string;
 }
@@ -281,7 +282,7 @@ export const api = {
     apiFetch<{ channels: ChannelItem[] }>("/api/conversations", { token }),
 
   getConversation: (token: string, channelId: string) =>
-    apiFetch<{ channel_id: string; messages: MessageItem[] }>(
+    apiFetch<{ channel_id: string; channel_name?: string | null; messages: MessageItem[] }>(
       `/api/conversations/${channelId}`,
       { token }
     ),

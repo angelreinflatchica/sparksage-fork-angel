@@ -380,14 +380,45 @@ async def list_channels() -> list[dict]:
     db = await get_db()
     cursor = await db.execute(
         """
-        SELECT channel_id, COUNT(*) as message_count, MAX(created_at) as last_active
-        FROM conversations
-        GROUP BY channel_id
+        SELECT
+            conv.channel_id,
+            COUNT(*) as message_count,
+            MAX(conv.created_at) as last_active,
+            (
+                SELECT a.channel_name
+                FROM analytics a
+                WHERE a.channel_id = conv.channel_id
+                  AND a.channel_name IS NOT NULL
+                  AND a.channel_name != ''
+                ORDER BY a.id DESC
+                LIMIT 1
+            ) as channel_name
+        FROM conversations conv
+        GROUP BY conv.channel_id
         ORDER BY last_active DESC
         """
     )
     rows = await cursor.fetchall()
     return [dict(row) for row in rows]
+
+
+async def get_channel_name(channel_id: str) -> str | None:
+    """Get the latest known channel name for a channel ID from analytics."""
+    db = await get_db()
+    cursor = await db.execute(
+        """
+        SELECT channel_name
+        FROM analytics
+        WHERE channel_id = ?
+          AND channel_name IS NOT NULL
+          AND channel_name != ''
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (channel_id,),
+    )
+    row = await cursor.fetchone()
+    return row["channel_name"] if row else None
 
 
 # --- Wizard helpers ---

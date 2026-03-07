@@ -14,7 +14,8 @@ async def list_conversations(user: dict = Depends(get_current_user)):
 @router.get("/{channel_id}")
 async def get_conversation(channel_id: str, user: dict = Depends(get_current_user)):
     messages = await db.get_messages(channel_id, limit=100)
-    return {"channel_id": channel_id, "messages": messages}
+    channel_name = await db.get_channel_name(channel_id)
+    return {"channel_id": channel_id, "channel_name": channel_name, "messages": messages}
 
 
 @router.delete("/{channel_id}")

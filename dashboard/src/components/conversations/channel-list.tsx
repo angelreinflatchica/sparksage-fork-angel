@@ -36,7 +36,7 @@ export function ChannelList({ channels, onDelete }: ChannelListProps) {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Channel ID</TableHead>
+          <TableHead>Channel</TableHead>
           <TableHead className="text-right">Messages</TableHead>
           <TableHead>Last Activity</TableHead>
           <TableHead className="w-12" />
@@ -48,10 +48,13 @@ export function ChannelList({ channels, onDelete }: ChannelListProps) {
             <TableCell>
               <Link
                 href={`/dashboard/conversations/${ch.channel_id}`}
-                className="font-mono text-sm text-primary hover:underline"
+                className="text-sm text-primary hover:underline"
               >
-                #{ch.channel_id}
+                #{ch.channel_name || ch.channel_id}
               </Link>
+              {ch.channel_name && (
+                <p className="font-mono text-xs text-muted-foreground">ID: {ch.channel_id}</p>
+              )}
             </TableCell>
             <TableCell className="text-right">{ch.message_count}</TableCell>
             <TableCell className="text-sm text-muted-foreground">

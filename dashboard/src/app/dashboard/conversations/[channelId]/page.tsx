@@ -17,6 +17,7 @@ export default function ConversationDetailPage() {
   const channelId = params.channelId as string;
   const { data: session } = useSession();
   const [messages, setMessages] = useState<MessageItem[]>([]);
+  const [channelName, setChannelName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const token = (session as { accessToken?: string })?.accessToken;
@@ -25,7 +26,10 @@ export default function ConversationDetailPage() {
     if (!token || !channelId) return;
     api
       .getConversation(token, channelId)
-      .then((result) => setMessages(result.messages))
+      .then((result) => {
+        setMessages(result.messages);
+        setChannelName(result.channel_name || null);
+      })
       .catch(() => toast.error("Failed to load messages"))
       .finally(() => setLoading(false));
   }, [token, channelId]);
@@ -38,7 +42,10 @@ export default function ConversationDetailPage() {
             <ArrowLeft className="mr-1 h-4 w-4" /> Back
           </Link>
         </Button>
-        <h1 className="text-2xl font-bold">Channel #{channelId}</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Channel #{channelName || channelId}</h1>
+          {channelName && <p className="font-mono text-xs text-muted-foreground">ID: {channelId}</p>}
+        </div>
       </div>
 
       <Card>
