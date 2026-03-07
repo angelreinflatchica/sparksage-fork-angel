@@ -174,6 +174,28 @@ export interface HelpfulnessRating {
   total_feedback: number;
 }
 
+export interface QuotaEntry {
+  id: string;
+  remaining: number;
+  used: number;
+  limit: number;
+  allowed_count: number;
+  blocked_count: number;
+}
+
+export interface QuotaSummary {
+  limits: {
+    user_per_minute: number;
+    guild_per_minute: number;
+  };
+  active: {
+    user_buckets: number;
+    guild_buckets: number;
+  };
+  users: QuotaEntry[];
+  guilds: QuotaEntry[];
+}
+
 export interface PluginItem {
   id: string;
   name: string;
@@ -332,6 +354,10 @@ export const api = {
 
   getHelpfulnessRating: (token: string) =>
     apiFetch<HelpfulnessRating>("/api/analytics/helpfulness", { token }),
+
+  // Quota
+  getQuotaSummary: (token: string) =>
+    apiFetch<QuotaSummary>("/api/quota/summary", { token }),
 
   // Plugins
   getPlugins: (token: string) =>
