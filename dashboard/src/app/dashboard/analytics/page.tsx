@@ -308,7 +308,7 @@ export default function AnalyticsPage() {
                       radius={[4, 4, 0, 0]}
                     >
                       {
-                        topChannelsData.map((entry, index) => (
+                        history?.top_channels?.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill="#000000" />
                         ))
                       }

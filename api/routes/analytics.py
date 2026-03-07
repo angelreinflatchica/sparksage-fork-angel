@@ -94,17 +94,19 @@ async def get_analytics_history(days: int = 7, user: dict = Depends(get_current_
     )
     cost_per_provider_per_day = [dict(row) for row in await cursor.fetchall()]
     
-    # Top channels by message volume
+    # Top channels by message volume. Some rows may have null/empty channel_name,
+    # so normalize a display-friendly fallback using channel_id.
     cursor = await database.execute(
         """
-        SELECT 
+        SELECT
             channel_id,
-            COALESCE(MAX(NULLIF(channel_name, '')), channel_id) as channel_name,
+            COALESCE(MAX(NULLIF(channel_name, '')), channel_id) AS channel_name,
             COUNT(*) as count
-        FROM analytics 
+        FROM analytics
         WHERE event_type IN ('mention', 'command')
+          AND channel_id IS NOT NULL
         GROUP BY channel_id
-        ORDER BY count DESC 
+        ORDER BY count DESC
         LIMIT 5
         """
     )
