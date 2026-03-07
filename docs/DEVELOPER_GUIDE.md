@@ -29,7 +29,7 @@
 | Multi-provider fallback (Gemini → Groq → OpenRouter) | Done |
 | Optional paid providers (Anthropic, OpenAI) | Done |
 | Per-channel conversation history (SQLite) | Done |
-| FastAPI backend with 14 REST API endpoints | Done |
+| FastAPI backend with 19 REST API endpoints | Done |
 | JWT authentication (password + Discord OAuth2) | Done |
 | Next.js + shadcn/ui admin dashboard | Done |
 | 4-step setup wizard | Done |
@@ -272,7 +272,7 @@ async def setup(bot):
 
 ## Phase 4 — Advanced Features
 
-### 4.1 Daily Digest Scheduler
+### 4.1 Daily Digest Scheduler (P1)
 
 **Goal:** Automatically summarize daily activity and post to a designated channel.
 
@@ -293,9 +293,9 @@ async def setup(bot):
 
 ---
 
-### 4.2 Content Moderation Pipeline
+### 4.2 Content Moderation Pipeline (P1)
 
-**Goal:** Flag potentially problematic messages for moderator review.
+**Goal:** Flag or summarize potentially problematic messages for moderator review.
 
 **What to do:**
 1. Create `cogs/moderation.py`
@@ -305,14 +305,15 @@ async def setup(bot):
    Respond with JSON: {"flagged": bool, "reason": str, "severity": "low"|"medium"|"high"}
    ```
 3. If flagged, post to a `#mod-log` channel with the original message, reason, and action buttons
-4. Add config: `MODERATION_ENABLED`, `MOD_LOG_CHANNEL_ID`, `MODERATION_SENSITIVITY`
-5. Track moderation stats in DB
+4. Add a compact AI summary mode for flagged content batches to help moderators review faster
+5. Add config: `MODERATION_ENABLED`, `MOD_LOG_CHANNEL_ID`, `MODERATION_SENSITIVITY`
+6. Track moderation stats in DB
 
 **Important:** Be careful with AI moderation — always flag for human review, never auto-delete.
 
 ---
 
-### 4.3 Multi-Language Translation
+### 4.3 Multi-Language Translation (P2)
 
 **Goal:** `/translate` command and auto-translation for multilingual servers.
 
