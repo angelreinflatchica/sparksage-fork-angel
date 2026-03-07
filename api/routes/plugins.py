@@ -30,6 +30,35 @@ SAFE_PLUGIN_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 plugin_manager: PluginManager | None = None
 bot_instance: SparkSageBot | None = None
 
+
+async def _ensure_plugin_manager(require_bot: bool = False) -> PluginManager:
+    """Initialize plugin manager on-demand.
+
+    - require_bot=False: allows filesystem/db plugin operations (list/upload/install)
+    - require_bot=True: requires an attached, running bot for load/unload/sync
+    """
+    global plugin_manager, bot_instance
+
+    from api.main import get_bot_instance
+
+    bot_instance = get_bot_instance()
+
+    if plugin_manager is None:
+        # For upload/list we can operate without a bot by scanning plugin files only.
+        plugin_manager = PluginManager(bot_instance)
+        await plugin_manager.scan_plugins()
+    elif plugin_manager.bot is None and bot_instance is not None:
+        # Bot became available after API startup; attach it to existing manager.
+        plugin_manager.bot = bot_instance
+
+    if require_bot and plugin_manager.bot is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Discord bot is not running yet. Start the bot and try again.",
+        )
+
+    return plugin_manager
+
 class PluginManifest(BaseModel):
     id: str
     name: str
@@ -224,26 +253,25 @@ async def _install_plugin_zip(zip_path: Path, manager: PluginManager) -> tuple[s
 
 
 async def _collect_plugins() -> list[PluginManifest]:
-    if plugin_manager is None:
-        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
-
+    await _ensure_plugin_manager(require_bot=False)
     db_plugins = await db.get_plugins()
     plugins: list[PluginManifest] = []
 
     for p in db_plugins:
         loaded = False
-        try:
-            folder_path = os.path.join(plugin_manager.plugins_dir, p["id"])
-            manifest_path = os.path.join(folder_path, "manifest.json")
-            with open(manifest_path, "r", encoding="utf-8") as file:
-                manifest = json.load(file)
-            cog_filename = manifest.get("cog")
-            if cog_filename:
-                module_name = cog_filename.replace(".py", "")
-                extension_path = f"plugins.{p['id']}.{module_name}"
-                loaded = extension_path in plugin_manager.bot.extensions
-        except Exception:
-            loaded = False
+        if plugin_manager is not None and plugin_manager.bot is not None:
+            try:
+                folder_path = os.path.join(plugin_manager.plugins_dir, p["id"])
+                manifest_path = os.path.join(folder_path, "manifest.json")
+                with open(manifest_path, "r", encoding="utf-8") as file:
+                    manifest = json.load(file)
+                cog_filename = manifest.get("cog")
+                if cog_filename:
+                    module_name = cog_filename.replace(".py", "")
+                    extension_path = f"plugins.{p['id']}.{module_name}"
+                    loaded = extension_path in plugin_manager.bot.extensions
+            except Exception:
+                loaded = False
 
         plugins.append(
             PluginManifest(
@@ -263,14 +291,12 @@ async def _collect_plugins() -> list[PluginManifest]:
 @router.on_event("startup")
 async def startup_event():
     global plugin_manager, bot_instance
-    from api.main import get_bot_instance
-    bot_instance = get_bot_instance()
-    if bot_instance:
-        plugin_manager = PluginManager(bot_instance)
-        await plugin_manager.scan_plugins()
-        await plugin_manager.load_enabled_plugins()
-    else:
-        logger.warning("Bot instance not available at API startup. Plugin manager will not be initialized.")
+    try:
+        manager = await _ensure_plugin_manager(require_bot=False)
+        if manager.bot is not None:
+            await manager.load_enabled_plugins()
+    except HTTPException:
+        logger.warning("Bot instance not available at API startup. Plugin manager will be initialized lazily.")
 
 @router.get("", response_model=PluginListResponse)
 async def list_plugins():
@@ -286,10 +312,9 @@ async def list_plugins_legacy():
 @router.post("/plugins/{plugin_id}/enable")
 async def enable_plugin(plugin_id: str):
     """Enable a specific plugin."""
-    if plugin_manager is None:
-        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
+    manager = await _ensure_plugin_manager(require_bot=True)
     
-    success, message = await plugin_manager.load_plugin(plugin_id)
+    success, message = await manager.load_plugin(plugin_id)
     if not success:
         raise HTTPException(status_code=400, detail=f"Failed to enable plugin: {message}")
     
@@ -299,15 +324,14 @@ async def enable_plugin(plugin_id: str):
 @router.post("/toggle")
 async def toggle_plugin(request: PluginToggleRequest):
     """Toggle plugin enabled state (dashboard endpoint)."""
-    if plugin_manager is None:
-        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
+    manager = await _ensure_plugin_manager(require_bot=True)
 
     if request.enabled:
-        success, message = await plugin_manager.load_plugin(request.id)
+        success, message = await manager.load_plugin(request.id)
         if not success:
             raise HTTPException(status_code=400, detail=f"Failed to enable plugin: {message}")
     else:
-        success, message = await plugin_manager.unload_plugin(request.id)
+        success, message = await manager.unload_plugin(request.id)
         if not success:
             raise HTTPException(status_code=400, detail=f"Failed to disable plugin: {message}")
 
@@ -316,10 +340,9 @@ async def toggle_plugin(request: PluginToggleRequest):
 @router.post("/plugins/{plugin_id}/disable")
 async def disable_plugin(plugin_id: str):
     """Disable a specific plugin."""
-    if plugin_manager is None:
-        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
+    manager = await _ensure_plugin_manager(require_bot=True)
     
-    success, message = await plugin_manager.unload_plugin(plugin_id)
+    success, message = await manager.unload_plugin(plugin_id)
     if not success:
         raise HTTPException(status_code=400, detail=f"Failed to disable plugin: {message}")
     
@@ -329,10 +352,9 @@ async def disable_plugin(plugin_id: str):
 @router.post("/{plugin_id}/reload")
 async def reload_plugin(plugin_id: str):
     """Reload a specific plugin (dashboard endpoint)."""
-    if plugin_manager is None:
-        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
+    manager = await _ensure_plugin_manager(require_bot=True)
 
-    success, message = await plugin_manager.reload_plugin(plugin_id)
+    success, message = await manager.reload_plugin(plugin_id)
     if not success:
         raise HTTPException(status_code=400, detail=f"Failed to reload plugin: {message}")
 
@@ -342,10 +364,9 @@ async def reload_plugin(plugin_id: str):
 @router.post("/sync")
 async def sync_plugins():
     """Sync application commands after plugin changes (dashboard endpoint)."""
-    if plugin_manager is None:
-        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
+    manager = await _ensure_plugin_manager(require_bot=True)
 
-    success, message = await plugin_manager.sync_commands()
+    success, message = await manager.sync_commands()
     if not success:
         raise HTTPException(status_code=400, detail=f"Failed to sync commands: {message}")
 
@@ -354,8 +375,7 @@ async def sync_plugins():
 @router.post("/upload", response_model=PluginInstallResponse)
 async def upload_plugin(file: UploadFile = File(...)):
     """Upload and install a plugin zip file."""
-    if plugin_manager is None:
-        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
+    manager = await _ensure_plugin_manager(require_bot=False)
 
     filename = file.filename or ""
     if not filename.lower().endswith(".zip"):
@@ -381,7 +401,7 @@ async def upload_plugin(file: UploadFile = File(...)):
             with open(temp_zip_path, "ab") as handle:
                 handle.write(chunk)
 
-        plugin_id, plugin_name = await _install_plugin_zip(temp_zip_path, plugin_manager)
+        plugin_id, plugin_name = await _install_plugin_zip(temp_zip_path, manager)
         return PluginInstallResponse(
             message=f"Plugin '{plugin_name}' installed successfully. Enable it to start using it.",
             plugin_id=plugin_id,
@@ -398,8 +418,7 @@ async def upload_plugin(file: UploadFile = File(...)):
 @router.post("/install", response_model=PluginInstallResponse)
 async def install_plugin(request: PluginInstallRequest):
     """Install a plugin from a direct zip URL (legacy helper endpoint)."""
-    if plugin_manager is None:
-        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
+    manager = await _ensure_plugin_manager(require_bot=False)
 
     if not str(request.url).lower().endswith(".zip"):
         raise HTTPException(status_code=400, detail="Only .zip plugin archives are supported.")
@@ -422,7 +441,7 @@ async def install_plugin(request: PluginInstallRequest):
             with open(temp_zip_path, "wb") as handle:
                 handle.write(content)
 
-        plugin_id, plugin_name = await _install_plugin_zip(temp_zip_path, plugin_manager)
+        plugin_id, plugin_name = await _install_plugin_zip(temp_zip_path, manager)
         return PluginInstallResponse(
             message=f"Plugin '{plugin_name}' installed successfully. Enable it to start using it.",
             plugin_id=plugin_id,

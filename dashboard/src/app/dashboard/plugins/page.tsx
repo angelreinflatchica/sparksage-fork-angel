@@ -29,8 +29,13 @@ export default function PluginsPage() {
       const data = await api.getPlugins(token);
       setPlugins(data.plugins);
     } catch (error) {
-      toast.error("Could not load plugins");
-      console.error(error);
+      const message = error instanceof Error ? error.message : "Could not load plugins";
+      if (message.toLowerCase().includes("bot is not running")) {
+        toast.message("Plugins loaded in offline mode. Start the bot to enable or reload plugins.");
+      } else {
+        toast.error("Could not load plugins");
+        console.error(error);
+      }
     } finally {
       setLoading(false);
     }
@@ -115,8 +120,13 @@ export default function PluginsPage() {
       await fetchPlugins();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to upload plugin";
-      toast.error(message);
-      console.error(error);
+      if (message.toLowerCase().includes("bot is not running")) {
+        toast.message("Plugin uploaded. Start the bot to enable or run plugins.");
+        await fetchPlugins();
+      } else {
+        toast.error(message);
+        console.error(error);
+      }
     } finally {
       setActionLoading(null);
     }

@@ -25,6 +25,7 @@ async def _init_database():
 def main():
     import config
     import providers
+    import api.main
 
     # Initialize database synchronously before anything else
     asyncio.run(_init_database())
@@ -61,6 +62,8 @@ def main():
     print("=" * 50)
 
     from bot import bot
+    # Ensure API routes can access the live bot instance even when launched via run.py
+    api.main.set_bot_instance(bot)
     bot.run(config.DISCORD_TOKEN)
 
 
