@@ -206,6 +206,32 @@ export interface PluginItem {
   loaded?: boolean;
 }
 
+export interface CostDailyEntry {
+  date: string;
+  provider: string;
+  total_cost: number;
+}
+
+export interface CostAlert {
+  level: "warning" | "critical";
+  metric: string;
+  message: string;
+}
+
+export interface CostMonthlyProjection {
+  projected_monthly_cost: number;
+  current_month_cost: number;
+  alert_threshold: number;
+  warning_threshold: number;
+  alert_level: "normal" | "warning" | "critical";
+  alerts: CostAlert[];
+}
+
+export interface CostProviderSummary {
+  provider: string;
+  total_cost: number;
+}
+
 export const api = {
   // Auth
   login: (password: string) =>
@@ -358,6 +384,16 @@ export const api = {
   // Quota
   getQuotaSummary: (token: string) =>
     apiFetch<QuotaSummary>("/api/quota/summary", { token }),
+
+  // Cost Tracking
+  getDailyCosts: (token: string) =>
+    apiFetch<CostDailyEntry[]>("/api/cost_tracking/daily_costs", { token }),
+
+  getMonthlyCostProjection: (token: string) =>
+    apiFetch<CostMonthlyProjection>("/api/cost_tracking/monthly_projection", { token }),
+
+  getCostSummary: (token: string) =>
+    apiFetch<CostProviderSummary[]>("/api/cost_tracking/summary", { token }),
 
   // Plugins
   getPlugins: (token: string) =>

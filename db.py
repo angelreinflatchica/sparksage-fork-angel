@@ -222,6 +222,7 @@ async def sync_env_to_db():
         "TRANSLATE_AUTO_TARGET": getattr(cfg, "TRANSLATE_AUTO_TARGET", "English"),
         "RATE_LIMIT_USER": str(getattr(cfg, "RATE_LIMIT_USER", "5")),
         "RATE_LIMIT_GUILD": str(getattr(cfg, "RATE_LIMIT_GUILD", "20")),
+        "COST_ALERT_THRESHOLD": str(getattr(cfg, "COST_ALERT_THRESHOLD", "25.0")),
     }
     # Only insert keys that don't already exist in DB (don't overwrite user edits)
     db = await get_db()
