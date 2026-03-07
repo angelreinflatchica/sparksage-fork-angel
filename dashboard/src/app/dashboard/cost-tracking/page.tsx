@@ -23,9 +23,9 @@ export default function CostTrackingPage() {
       try {
         setError(null);
         const [dailyCostsData, monthlyProjectionData, costSummaryData] = await Promise.all([
-          api.getDailyCosts(token),
-          api.getMonthlyCostProjection(token),
-          api.getCostSummary(token),
+          api.getDailyCosts(token!),
+          api.getMonthlyCostProjection(token!),
+          api.getCostSummary(token!),
         ]);
 
         setDailyCosts(Array.isArray(dailyCostsData) ? dailyCostsData : []);
