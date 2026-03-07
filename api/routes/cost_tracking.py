@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends
-from datetime import datetime, timedelta
+from datetime import datetime
+import calendar
+import config
 import db
 from api.deps import get_current_user
 
@@ -26,17 +28,62 @@ async def get_monthly_projection_route(user: dict = Depends(get_current_user)):
     
     current_month_cost = await db.get_total_cost_since(start_of_month)
     
-    days_in_month = (datetime(today.year, today.month % 12 + 1, 1) - timedelta(days=1)).day
+    days_in_month = calendar.monthrange(today.year, today.month)[1]
     days_passed = today.day
     
-    if days_passed == 0: # Avoid division by zero if running on the first day very early
-        return {"projected_monthly_cost": 0.0, "current_month_cost": 0.0}
+    if days_passed <= 0:
+        return {
+            "projected_monthly_cost": 0.0,
+            "current_month_cost": 0.0,
+            "alert_threshold": float(getattr(config, "COST_ALERT_THRESHOLD", 25.0)),
+            "warning_threshold": float(getattr(config, "COST_ALERT_THRESHOLD", 25.0)) * 0.8,
+            "alert_level": "normal",
+            "alerts": [],
+        }
 
     projected_monthly_cost = (current_month_cost / days_passed) * days_in_month
+
+    threshold_raw = await db.get_config(
+        "COST_ALERT_THRESHOLD", str(getattr(config, "COST_ALERT_THRESHOLD", 25.0))
+    )
+    try:
+        alert_threshold = float(threshold_raw) if threshold_raw is not None else float(getattr(config, "COST_ALERT_THRESHOLD", 25.0))
+    except (TypeError, ValueError):
+        alert_threshold = float(getattr(config, "COST_ALERT_THRESHOLD", 25.0))
+
+    if alert_threshold <= 0:
+        alert_threshold = 25.0
+
+    warning_threshold = alert_threshold * 0.8
+    alerts = []
+    alert_level = "normal"
+
+    if projected_monthly_cost >= alert_threshold:
+        alert_level = "critical"
+        alerts.append(
+            {
+                "level": "critical",
+                "metric": "projected_monthly_cost",
+                "message": "Projected monthly cost has reached or exceeded the configured threshold.",
+            }
+        )
+    elif projected_monthly_cost >= warning_threshold:
+        alert_level = "warning"
+        alerts.append(
+            {
+                "level": "warning",
+                "metric": "projected_monthly_cost",
+                "message": "Projected monthly cost is approaching the configured threshold.",
+            }
+        )
     
     return {
         "projected_monthly_cost": round(projected_monthly_cost, 4),
-        "current_month_cost": round(current_month_cost, 4)
+        "current_month_cost": round(current_month_cost, 4),
+        "alert_threshold": round(alert_threshold, 4),
+        "warning_threshold": round(warning_threshold, 4),
+        "alert_level": alert_level,
+        "alerts": alerts,
     }
 
 

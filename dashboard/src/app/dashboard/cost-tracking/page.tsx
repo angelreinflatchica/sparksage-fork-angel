@@ -1,47 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
-import { getApiUrl } from "../../../lib/api";
-
-interface DailyCost {
-  date: string;
-  provider: string;
-  total_cost: number;
-}
-
-interface MonthlyProjection {
-  projected_monthly_cost: number;
-  current_month_cost: number;
-}
-
-interface CostSummary {
-  provider: string;
-  total_cost: number;
-}
+import { api, CostDailyEntry, CostMonthlyProjection, CostProviderSummary } from "../../../lib/api";
 
 export default function CostTrackingPage() {
-  const [dailyCosts, setDailyCosts] = useState<DailyCost[]>([]);
-  const [monthlyProjection, setMonthlyProjection] = useState<MonthlyProjection | null>(null);
-  const [costSummary, setCostSummary] = useState<CostSummary[]>([]);
+  const { data: session } = useSession();
+  const token = (session as { accessToken?: string })?.accessToken;
+
+  const [dailyCosts, setDailyCosts] = useState<CostDailyEntry[]>([]);
+  const [monthlyProjection, setMonthlyProjection] = useState<CostMonthlyProjection | null>(null);
+  const [costSummary, setCostSummary] = useState<CostProviderSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!token) return;
+
     async function fetchData() {
       try {
-        const dailyCostsRes = await fetch(getApiUrl("/cost_tracking/daily_costs"));
-        const dailyCostsData = await dailyCostsRes.json();
-        setDailyCosts(dailyCostsData);
+        setError(null);
+        const [dailyCostsData, monthlyProjectionData, costSummaryData] = await Promise.all([
+          api.getDailyCosts(token),
+          api.getMonthlyCostProjection(token),
+          api.getCostSummary(token),
+        ]);
 
-        const monthlyProjectionRes = await fetch(getApiUrl("/cost_tracking/monthly_projection"));
-        const monthlyProjectionData = await monthlyProjectionRes.json();
+        setDailyCosts(Array.isArray(dailyCostsData) ? dailyCostsData : []);
         setMonthlyProjection(monthlyProjectionData);
-
-        const costSummaryRes = await fetch(getApiUrl("/cost_tracking/summary"));
-        const costSummaryData = await costSummaryRes.json();
-        setCostSummary(costSummaryData);
+        setCostSummary(Array.isArray(costSummaryData) ? costSummaryData : []);
       } catch (err) {
         setError("Failed to fetch cost data.");
         console.error(err);
@@ -50,7 +39,7 @@ export default function CostTrackingPage() {
       }
     }
     fetchData();
-  }, []);
+  }, [token]);
 
   if (loading) {
     return <div className="p-4">Loading cost data...</div>;
@@ -112,7 +101,45 @@ export default function CostTrackingPage() {
             </p>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Alert Threshold</CardTitle>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              className="h-4 w-4 text-muted-foreground"
+            >
+              <path d="M12 9v4" />
+              <path d="M12 17h.01" />
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            </svg>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${(monthlyProjection?.alert_threshold ?? 0).toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">
+              Warning at ${(monthlyProjection?.warning_threshold ?? 0).toFixed(2)}
+            </p>
+          </CardContent>
+        </Card>
       </div>
+
+      {monthlyProjection?.alerts?.length ? (
+        <Card className={monthlyProjection.alert_level === "critical" ? "border-red-500" : "border-amber-500"}>
+          <CardHeader>
+            <CardTitle className="text-base">
+              {monthlyProjection.alert_level === "critical" ? "Cost Alert: Threshold Reached" : "Cost Alert: Approaching Threshold"}
+            </CardTitle>
+            <CardDescription>
+              {monthlyProjection.alerts[0]?.message}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="col-span-1">
