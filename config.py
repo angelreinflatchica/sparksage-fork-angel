@@ -62,9 +62,9 @@ TRANSLATE_AUTO_ENABLED = os.getenv("TRANSLATE_AUTO_ENABLED", "0")
 TRANSLATE_AUTO_CHANNEL_ID = os.getenv("TRANSLATE_AUTO_CHANNEL_ID", "")
 TRANSLATE_AUTO_TARGET = os.getenv("TRANSLATE_AUTO_TARGET", "English")
 
-# Rate Limiting
 RATE_LIMIT_USER = int(os.getenv("RATE_LIMIT_USER", "5"))
 RATE_LIMIT_GUILD = int(os.getenv("RATE_LIMIT_GUILD", "20"))
+COST_ALERT_THRESHOLD = float(os.getenv("COST_ALERT_THRESHOLD", "25.0"))
 # Dashboard settings
 DATABASE_PATH = os.getenv("DATABASE_PATH", "sparksage.db")
 DASHBOARD_PORT = int(os.getenv("DASHBOARD_PORT", "8000"))
@@ -170,6 +170,7 @@ def reload_from_db(db_config: dict[str, str]):
         "TRANSLATE_AUTO_TARGET": str,
         "RATE_LIMIT_USER": int,
         "RATE_LIMIT_GUILD": int,
+        "COST_ALERT_THRESHOLD": float,
     }
 
     for key, converter in mapping.items():

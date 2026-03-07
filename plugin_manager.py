@@ -146,6 +146,7 @@ class PluginManager:
             else:
                 print(f"✅ Successfully synced commands for {plugin_id}")
             
+            await db.set_plugin_state(plugin_id, True)
             print(f"✅ Successfully loaded/reloaded: {plugin_id}")
             return True, ""
         except Exception as e:
@@ -173,6 +174,7 @@ class PluginManager:
             if extension_path in self.bot.extensions:
                 print(f"📤 Unloading plugin: {plugin_id}")
                 await self.bot.unload_extension(extension_path)
+                await db.set_plugin_state(plugin_id, False)
                 print(f"✅ Successfully unloaded: {plugin_id}")
             return True, ""
         except Exception as e:

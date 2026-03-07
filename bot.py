@@ -11,8 +11,10 @@ import os
 import traceback
 from cogs.prompts import get_channel_prompt
 from cogs.channel_providers import get_channel_provider
-from utils.rate_limiter import limiter
+from utils.rate_limiter import get_limiter
 from plugin_manager import PluginManager
+
+import api.main # Import api.main
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -178,6 +180,9 @@ async def on_ready():
     print(f"Fallback chain: {' -> '.join(available)}")
     print(f"Commands loaded: {[cmd.name for cmd in bot.tree.get_commands()]}")
 
+    # Set bot presence
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=f"{config.BOT_PREFIX}help"))
+
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -191,22 +196,26 @@ async def on_message(message: discord.Message):
             try:
                 guild_limit_str = await database.get_config("RATE_LIMIT_GUILD", str(config.RATE_LIMIT_GUILD))
                 guild_limit = int(guild_limit_str)
-                limited, retry = await limiter.is_rate_limited(str(message.guild.id), guild_limit, is_guild=True)
+                limited, retry = await get_limiter().is_rate_limited(
+                    str(message.guild.id), guild_limit, is_guild=True
+                )
                 if limited:
-                    await message.reply(f"⚠️ This server has reached its AI request limit. Please try again in {retry}s.")
+                    retry_s = retry or 1
+                    await message.reply(f"⚠️ This server has reached its AI request limit. Please try again in {retry_s}s.")
                     return
-            except:
+            except Exception:
                 pass
 
         # 2. User Rate Limit
         try:
             user_limit_str = await database.get_config("RATE_LIMIT_USER", str(config.RATE_LIMIT_USER))
             user_limit = int(user_limit_str)
-            limited, retry = await limiter.is_rate_limited(str(message.author.id), user_limit)
+            limited, retry = await get_limiter().is_rate_limited(str(message.author.id), user_limit)
             if limited:
-                await message.reply(f"⏳ You're sending requests too fast! Please wait {retry}s.")
+                retry_s = retry or 1
+                await message.reply(f"⏳ You're sending requests too fast! Please wait {retry_s}s.")
                 return
-        except:
+        except Exception:
             pass
 
         clean_content = message.content.replace(f"<@{bot.user.id}>", "").replace(f"<@!{bot.user.id}>", "").strip()
@@ -311,6 +320,7 @@ def main():
         print("Error: No AI providers configured. Add at least one API key to .env")
         return
 
+    api.main.set_bot_instance(bot)
     bot.run(config.DISCORD_TOKEN)
 
 

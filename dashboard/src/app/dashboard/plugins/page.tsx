@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useSession } from "next-auth/react";
 import { 
   Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter 
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { 
-  Loader2, RefreshCw, Puzzle, User, AlertCircle 
+  Loader2, RefreshCw, Puzzle, User, AlertCircle, Upload 
 } from "lucide-react";
 import { api, type PluginItem } from "@/lib/api";
 
@@ -19,6 +19,7 @@ export default function PluginsPage() {
   const [plugins, setPlugins] = useState<PluginItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   const token = (session as { accessToken?: string })?.accessToken;
 
@@ -28,8 +29,13 @@ export default function PluginsPage() {
       const data = await api.getPlugins(token);
       setPlugins(data.plugins);
     } catch (error) {
-      toast.error("Could not load plugins");
-      console.error(error);
+      const message = error instanceof Error ? error.message : "Could not load plugins";
+      if (message.toLowerCase().includes("bot is not running")) {
+        toast.message("Plugins loaded in offline mode. Start the bot to enable or reload plugins.");
+      } else {
+        toast.error("Could not load plugins");
+        console.error(error);
+      }
     } finally {
       setLoading(false);
     }
@@ -88,6 +94,44 @@ export default function PluginsPage() {
     }
   };
 
+  const handleUploadClick = () => {
+    uploadInputRef.current?.click();
+  };
+
+  const uploadPlugin = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!selected) return;
+    if (!token) {
+      toast.error("Please sign in again to upload plugins");
+      return;
+    }
+
+    if (!selected.name.toLowerCase().endsWith(".zip")) {
+      toast.error("Only .zip plugin archives are supported");
+      return;
+    }
+
+    setActionLoading("upload-plugin");
+    try {
+      const result = await api.uploadPlugin(token, selected);
+      toast.success(result.message);
+      await fetchPlugins();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to upload plugin";
+      if (message.toLowerCase().includes("bot is not running")) {
+        toast.message("Plugin uploaded. Start the bot to enable or run plugins.");
+        await fetchPlugins();
+      } else {
+        toast.error(message);
+        console.error(error);
+      }
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-[400px] items-center justify-center">
@@ -101,16 +145,39 @@ export default function PluginsPage() {
       <div>
         <div className="flex items-center justify-between">
           <h2 className="text-3xl font-bold tracking-tight">Plugins</h2>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="gap-2"
-            onClick={syncAll}
-            disabled={actionLoading === "sync-all"}
-          >
-            <RefreshCw className={`h-4 w-4 ${actionLoading === "sync-all" ? "animate-spin" : ""}`} />
-            Sync Commands
-          </Button>
+          <div className="flex items-center gap-2">
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept=".zip,application/zip,application/x-zip-compressed"
+              className="hidden"
+              onChange={uploadPlugin}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              className="gap-2"
+              onClick={handleUploadClick}
+              disabled={actionLoading === "upload-plugin"}
+            >
+              {actionLoading === "upload-plugin" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+              Upload Plugin
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={syncAll}
+              disabled={actionLoading === "sync-all"}
+            >
+              <RefreshCw className={`h-4 w-4 ${actionLoading === "sync-all" ? "animate-spin" : ""}`} />
+              Sync Commands
+            </Button>
+          </div>
         </div>
         <p className="text-muted-foreground">
           Manage community-contributed extensions and features.
@@ -122,7 +189,7 @@ export default function PluginsPage() {
           <Puzzle className="mb-4 h-12 w-12 text-muted-foreground opacity-20" />
           <CardTitle>No plugins found</CardTitle>
           <CardDescription className="mt-2 max-w-[400px]">
-            Add plugins by placing them in the <code>sparksage/plugins/</code> directory with a <code>manifest.json</code>.
+            Upload plugin <code>.zip</code> archives or place them in the <code>plugins/</code> directory with a <code>manifest.json</code>.
           </CardDescription>
         </Card>
       ) : (
@@ -184,7 +251,7 @@ export default function PluginsPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Plugins are loaded dynamically from the <code>sparksage/plugins/</code> directory. Each plugin must be in its own sub-folder containing a <code>manifest.json</code> file that points to its primary <code>cog</code> file.
+            Plugin archives must contain a single top-level plugin folder with a valid <code>manifest.json</code> and a valid <code>cog</code> path.
           </p>
         </CardContent>
       </Card>

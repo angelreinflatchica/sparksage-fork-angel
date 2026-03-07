@@ -5,22 +5,34 @@ interface FetchOptions extends RequestInit {
 }
 
 async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const { token, headers: customHeaders, ...rest } = options;
+  const { token, headers: customHeaders, body, ...rest } = options;
+
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...((customHeaders as Record<string, string>) || {}),
   };
+
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
-    headers,
-    cache: "no-store",
-    ...rest,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      headers,
+      body,
+      cache: "no-store",
+      ...rest,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown network error";
+    throw new Error(`Network error while calling ${path}: ${message}`);
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
@@ -162,6 +174,28 @@ export interface HelpfulnessRating {
   total_feedback: number;
 }
 
+export interface QuotaEntry {
+  id: string;
+  remaining: number;
+  used: number;
+  limit: number;
+  allowed_count: number;
+  blocked_count: number;
+}
+
+export interface QuotaSummary {
+  limits: {
+    user_per_minute: number;
+    guild_per_minute: number;
+  };
+  active: {
+    user_buckets: number;
+    guild_buckets: number;
+  };
+  users: QuotaEntry[];
+  guilds: QuotaEntry[];
+}
+
 export interface PluginItem {
   id: string;
   name: string;
@@ -169,6 +203,33 @@ export interface PluginItem {
   author: string | null;
   description: string | null;
   enabled: boolean;
+  loaded?: boolean;
+}
+
+export interface CostDailyEntry {
+  date: string;
+  provider: string;
+  total_cost: number;
+}
+
+export interface CostAlert {
+  level: "warning" | "critical";
+  metric: string;
+  message: string;
+}
+
+export interface CostMonthlyProjection {
+  projected_monthly_cost: number;
+  current_month_cost: number;
+  alert_threshold: number;
+  warning_threshold: number;
+  alert_level: "normal" | "warning" | "critical";
+  alerts: CostAlert[];
+}
+
+export interface CostProviderSummary {
+  provider: string;
+  total_cost: number;
 }
 
 export const api = {
@@ -320,6 +381,20 @@ export const api = {
   getHelpfulnessRating: (token: string) =>
     apiFetch<HelpfulnessRating>("/api/analytics/helpfulness", { token }),
 
+  // Quota
+  getQuotaSummary: (token: string) =>
+    apiFetch<QuotaSummary>("/api/quota/summary", { token }),
+
+  // Cost Tracking
+  getDailyCosts: (token: string) =>
+    apiFetch<CostDailyEntry[]>("/api/cost_tracking/daily_costs", { token }),
+
+  getMonthlyCostProjection: (token: string) =>
+    apiFetch<CostMonthlyProjection>("/api/cost_tracking/monthly_projection", { token }),
+
+  getCostSummary: (token: string) =>
+    apiFetch<CostProviderSummary[]>("/api/cost_tracking/summary", { token }),
+
   // Plugins
   getPlugins: (token: string) =>
     apiFetch<{ plugins: PluginItem[] }>("/api/plugins", { token }),
@@ -342,4 +417,17 @@ export const api = {
       method: "POST",
       token,
     }),
+
+  uploadPlugin: (token: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiFetch<{ message: string; plugin_id: string; plugin_name: string }>(
+      "/api/plugins/upload",
+      {
+        method: "POST",
+        body: form,
+        token,
+      }
+    );
+  },
 };

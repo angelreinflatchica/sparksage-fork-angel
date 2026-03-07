@@ -1,9 +1,17 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routes import auth, config, providers, bot, conversations, wizard, faq, permissions, prompts, channel_providers, analytics, plugins, cost_tracking
+from api.routes import auth, config, providers, bot, conversations, wizard, faq, permissions, prompts, channel_providers, analytics, plugins, cost_tracking, quota
 import db
 
+_bot_instance = None
+
+def set_bot_instance(bot):
+    global _bot_instance
+    _bot_instance = bot
+
+def get_bot_instance():
+    return _bot_instance
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,13 +29,14 @@ def create_app() -> FastAPI:
         allow_origins=[
             "http://localhost:3000",
             "http://127.0.0.1:3000",
+            "https://sparksage-frontend-angel.vercel.app",
         ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+    app.include_router(auth.router, tags=["auth"])
     app.include_router(config.router, prefix="/api/config", tags=["config"])
     app.include_router(providers.router, prefix="/api/providers", tags=["providers"])
     app.include_router(bot.router, prefix="/api/bot", tags=["bot"])
@@ -40,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
     app.include_router(plugins.router, prefix="/api/plugins", tags=["plugins"])
     app.include_router(cost_tracking.router, prefix="/api/cost_tracking", tags=["cost_tracking"])
+    app.include_router(quota.router, prefix="/api/quota", tags=["quota"])
     print("FAQ, Permissions, Prompts, Channel Providers, Analytics, and Plugins routers included in FastAPI")
 
     @app.get("/api/health")

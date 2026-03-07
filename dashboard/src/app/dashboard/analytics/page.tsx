@@ -78,6 +78,10 @@ export default function AnalyticsPage() {
   }
 
   const hasData = summary && summary.total_events > 0;
+  const topChannelsData = (history?.top_channels || []).map((channel) => ({
+    ...channel,
+    display_name: channel.channel_name || channel.channel_id || "unknown-channel",
+  }));
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -275,17 +279,17 @@ export default function AnalyticsPage() {
                   Most active Discord channels.
                   {history?.top_channels && history.top_channels.length > 0 && (
                     <span className="block mt-1 text-sm">
-                      Leading: #{history.top_channels[0].channel_name || history.top_channels[0].channel_id}
+                      Leading: #{topChannelsData[0]?.display_name}
                     </span>
                   )}
                 </CardDescription>
               </CardHeader>
               <CardContent className="h-[300px] pt-4">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={history?.top_channels}>
+                  <BarChart data={topChannelsData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis 
-                      dataKey="channel_name" 
+                      dataKey="display_name" 
                       fontSize={10} 
                       angle={-45} 
                       textAnchor="end" 
