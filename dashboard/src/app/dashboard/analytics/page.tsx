@@ -37,6 +37,33 @@ import {
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const normalized = hex.replace("#", "");
+  const bigint = parseInt(normalized, 16);
+  return {
+    r: (bigint >> 16) & 255,
+    g: (bigint >> 8) & 255,
+    b: bigint & 255,
+  };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  const toHex = (value: number) => value.toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function interpolateHexColor(startHex: string, endHex: string, t: number): string {
+  const start = hexToRgb(startHex);
+  const end = hexToRgb(endHex);
+  const clampT = Math.min(1, Math.max(0, t));
+
+  const r = Math.round(start.r + (end.r - start.r) * clampT);
+  const g = Math.round(start.g + (end.g - start.g) * clampT);
+  const b = Math.round(start.b + (end.b - start.b) * clampT);
+
+  return rgbToHex(r, g, b);
+}
+
 export default function AnalyticsPage() {
   const { data: session } = useSession();
   const [loading, setLoading] = useState(true);
@@ -82,6 +109,10 @@ export default function AnalyticsPage() {
     ...channel,
     display_name: channel.channel_name || channel.channel_id || "unknown-channel",
   }));
+  const topChannelBarColors = topChannelsData.map((_, index, arr) => {
+    const t = arr.length <= 1 ? 0 : index / (arr.length - 1);
+    return interpolateHexColor("#0B3D91", "#A7D8FF", t);
+  });
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -308,8 +339,8 @@ export default function AnalyticsPage() {
                       radius={[4, 4, 0, 0]}
                     >
                       {
-                        history?.top_channels?.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill="#000000" />
+                        topChannelsData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={topChannelBarColors[index]} />
                         ))
                       }
                     </Bar>
