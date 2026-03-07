@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
 import {
   Zap,
@@ -52,27 +52,37 @@ const CORE_NAV_ITEMS = [
 ];
 
 const SETTINGS_NAV_ITEMS = [
-  { title: "General", href: "/dashboard/settings", icon: Settings },
+  { title: "General", href: "/dashboard/settings?tab=general", icon: Settings, tab: "general" },
+  { title: "Daily Digest", href: "/dashboard/settings?tab=digest", icon: Calendar, tab: "digest" },
   { title: "Providers", href: "/dashboard/providers", icon: Cpu },
   { title: "Onboarding", href: "/dashboard/onboarding", icon: Users },
   { title: "FAQs", href: "/dashboard/faq", icon: MessageSquare },
   { title: "Permissions", href: "/dashboard/permissions", icon: Shield },
 ];
 
+const AI_CONTROL_ITEMS = [
+  { title: "Translation", href: "/dashboard/settings?tab=translation", icon: Languages, tab: "translation" },
+  { title: "Channel Providers", href: "/dashboard/settings?tab=channel-providers", icon: Cpu, tab: "channel-providers" },
+  { title: "Prompts", href: "/dashboard/settings?tab=prompts", icon: MessageSquare, tab: "prompts" },
+  { title: "Moderation", href: "/dashboard/settings?tab=moderation", icon: ShieldAlert, tab: "moderation" },
+];
+
 export function AppSidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { setTheme, resolvedTheme } = useTheme();
-  const hasActiveSettingsItem = useMemo(
-    () => SETTINGS_NAV_ITEMS.some((item) => pathname.startsWith(item.href)),
-    [pathname]
-  );
-  const [settingsOpen, setSettingsOpen] = useState(hasActiveSettingsItem);
+  const activeSettingsTab = searchParams.get("tab") || "general";
 
-  useEffect(() => {
-    if (hasActiveSettingsItem) {
-      setSettingsOpen(true);
+  const isNavItemActive = (item: { href: string; tab?: string }) => {
+    if (item.tab) {
+      return pathname === "/dashboard/settings" && activeSettingsTab === item.tab;
     }
-  }, [hasActiveSettingsItem]);
+    return pathname === item.href;
+  };
+
+  const hasActiveSettingsItem = SETTINGS_NAV_ITEMS.some((item) => isNavItemActive(item));
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const effectiveSettingsOpen = hasActiveSettingsItem || settingsOpen;
 
   return (
     <Sidebar>
@@ -121,20 +131,20 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+                <Collapsible open={effectiveSettingsOpen} onOpenChange={setSettingsOpen}>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton isActive={hasActiveSettingsItem}>
                       <Settings className="h-4 w-4" />
                       <span>Settings</span>
                       <ChevronDown
-                        className={`ml-auto h-4 w-4 transition-transform ${settingsOpen ? "rotate-180" : ""}`}
+                        className={`ml-auto h-4 w-4 transition-transform ${effectiveSettingsOpen ? "rotate-180" : ""}`}
                       />
                     </SidebarMenuButton>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <div className="mt-1 space-y-1 pl-6">
                       {SETTINGS_NAV_ITEMS.map((item) => (
-                        <SidebarMenuButton key={item.href} asChild isActive={pathname === item.href} className="h-7 text-xs">
+                        <SidebarMenuButton key={item.href} asChild isActive={isNavItemActive(item)} className="h-7 text-xs">
                           <Link href={item.href}>
                             <item.icon className="h-3.5 w-3.5" />
                             <span>{item.title}</span>
@@ -145,6 +155,24 @@ export function AppSidebar() {
                   </CollapsibleContent>
                 </Collapsible>
               </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>AI Controls</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {AI_CONTROL_ITEMS.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton asChild isActive={isNavItemActive(item)}>
+                    <Link href={item.href}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
