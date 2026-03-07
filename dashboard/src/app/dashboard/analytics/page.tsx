@@ -218,8 +218,8 @@ export default function AnalyticsPage() {
                   <AreaChart data={history?.daily} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
                     <defs>
                       <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                        <stop offset="5%" stopColor="#0B6A6A" stopOpacity={0.95} />
+                        <stop offset="95%" stopColor="#9EF3F0" stopOpacity={0.3} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -244,7 +244,7 @@ export default function AnalyticsPage() {
                     <Area
                       type="monotone"
                       dataKey="messages"
-                      stroke="hsl(var(--primary))"
+                      stroke="#4FD8D1"
                       fill="url(#colorUv)"
                       fillOpacity={1}
                       isAnimationActive={false}
@@ -322,9 +322,9 @@ export default function AnalyticsPage() {
                     <XAxis 
                       dataKey="display_name" 
                       fontSize={10} 
-                      angle={-45} 
-                      textAnchor="end" 
-                      height={60} // Give more space for rotated labels
+                      angle={0}
+                      textAnchor="middle"
+                      height={40}
                       interval={0} // Show all labels
                     />
                     <YAxis fontSize={12} />
