@@ -19,6 +19,7 @@ import {
   BarChart3,
   Puzzle,
   DollarSign,
+  Gauge,
   Sun,
   Moon,
 } from "lucide-react";
@@ -42,6 +43,7 @@ const NAV_ITEMS = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { title: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
   { title: "Providers", href: "/dashboard/providers", icon: Cpu },
+  { title: "Quota", href: "/dashboard/quota", icon: Gauge },
   { title: "Cost Tracking", href: "/dashboard/cost-tracking", icon: DollarSign },
 
   { title: "Onboarding", href: "/dashboard/onboarding", icon: Users },
