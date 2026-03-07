@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { SessionProvider } from "next-auth/react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/sidebar/app-sidebar";
@@ -13,7 +14,9 @@ export default function DashboardLayout({
   return (
     <SessionProvider>
       <SidebarProvider>
-        <AppSidebar />
+        <Suspense fallback={<div className="w-64 border-r bg-background" />}>
+          <AppSidebar />
+        </Suspense>
         <main className="flex-1">
           <header className="flex h-14 items-center gap-2 border-b px-4">
             <SidebarTrigger />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -67,7 +67,7 @@ function isSettingsTab(value: string | null): value is SettingsTab {
   return value !== null && SETTINGS_TABS.includes(value as SettingsTab);
 }
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const { data: session } = useSession();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -939,5 +939,19 @@ export default function SettingsPage() {
         </Tabs>
       </form>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <SettingsPageContent />
+    </Suspense>
   );
 }
