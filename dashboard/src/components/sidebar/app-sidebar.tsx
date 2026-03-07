@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
@@ -22,6 +23,7 @@ import {
   Gauge,
   Sun,
   Moon,
+  ChevronDown,
 } from "lucide-react";
 import {
   Sidebar,
@@ -38,21 +40,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { ClientOnly } from "@/components/client-only";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-const NAV_ITEMS = [
+const CORE_NAV_ITEMS = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { title: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },
-  { title: "Providers", href: "/dashboard/providers", icon: Cpu },
+  { title: "Conversations", href: "/dashboard/conversations", icon: MessageSquare },
   { title: "Quota", href: "/dashboard/quota", icon: Gauge },
   { title: "Cost Tracking", href: "/dashboard/cost-tracking", icon: DollarSign },
-
-  { title: "Onboarding", href: "/dashboard/onboarding", icon: Users },
-
   { title: "Plugins", href: "/dashboard/plugins", icon: Puzzle },
+];
 
-
-  { title: "Settings", href: "/dashboard/settings", icon: Settings },
-  { title: "Conversations", href: "/dashboard/conversations", icon: MessageSquare },
+const SETTINGS_NAV_ITEMS = [
+  { title: "General", href: "/dashboard/settings", icon: Settings },
+  { title: "Providers", href: "/dashboard/providers", icon: Cpu },
+  { title: "Onboarding", href: "/dashboard/onboarding", icon: Users },
   { title: "FAQs", href: "/dashboard/faq", icon: MessageSquare },
   { title: "Permissions", href: "/dashboard/permissions", icon: Shield },
 ];
@@ -60,6 +62,17 @@ const NAV_ITEMS = [
 export function AppSidebar() {
   const pathname = usePathname();
   const { setTheme, resolvedTheme } = useTheme();
+  const hasActiveSettingsItem = useMemo(
+    () => SETTINGS_NAV_ITEMS.some((item) => pathname.startsWith(item.href)),
+    [pathname]
+  );
+  const [settingsOpen, setSettingsOpen] = useState(hasActiveSettingsItem);
+
+  useEffect(() => {
+    if (hasActiveSettingsItem) {
+      setSettingsOpen(true);
+    }
+  }, [hasActiveSettingsItem]);
 
   return (
     <Sidebar>
@@ -89,7 +102,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map((item) => (
+              {CORE_NAV_ITEMS.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild isActive={pathname === item.href}>
                     <Link href={item.href}>
@@ -102,6 +115,40 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Administration</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <Collapsible open={settingsOpen} onOpenChange={setSettingsOpen}>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton isActive={hasActiveSettingsItem}>
+                      <Settings className="h-4 w-4" />
+                      <span>Settings</span>
+                      <ChevronDown
+                        className={`ml-auto h-4 w-4 transition-transform ${settingsOpen ? "rotate-180" : ""}`}
+                      />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="mt-1 space-y-1 pl-6">
+                      {SETTINGS_NAV_ITEMS.map((item) => (
+                        <SidebarMenuButton key={item.href} asChild isActive={pathname === item.href} className="h-7 text-xs">
+                          <Link href={item.href}>
+                            <item.icon className="h-3.5 w-3.5" />
+                            <span>{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         <SidebarGroup>
           <SidebarGroupLabel>Tools</SidebarGroupLabel>
           <SidebarGroupContent>
