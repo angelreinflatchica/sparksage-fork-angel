@@ -97,10 +97,13 @@ async def get_analytics_history(days: int = 7, user: dict = Depends(get_current_
     # Top channels by message volume
     cursor = await database.execute(
         """
-        SELECT channel_id, channel_name, COUNT(*) as count 
+        SELECT 
+            channel_id,
+            COALESCE(MAX(NULLIF(channel_name, '')), channel_id) as channel_name,
+            COUNT(*) as count
         FROM analytics 
         WHERE event_type IN ('mention', 'command')
-        GROUP BY channel_id, channel_name
+        GROUP BY channel_id
         ORDER BY count DESC 
         LIMIT 5
         """
