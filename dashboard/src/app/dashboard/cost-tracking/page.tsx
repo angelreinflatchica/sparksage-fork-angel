@@ -15,6 +15,9 @@ export default function CostTrackingPage() {
   const [costSummary, setCostSummary] = useState<CostProviderSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAllDailyCosts, setShowAllDailyCosts] = useState(false);
+
+  const visibleDailyCosts = showAllDailyCosts ? dailyCosts : dailyCosts.slice(0, 5);
 
   useEffect(() => {
     if (!token) return;
@@ -156,12 +159,20 @@ export default function CostTrackingPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Array.isArray(costSummary) && costSummary.map((summary) => (
-                  <TableRow key={summary.provider}>
-                    <TableCell className="font-medium">{summary.provider}</TableCell>
-                    <TableCell className="text-right">${summary.total_cost.toFixed(4)}</TableCell>
+                {Array.isArray(costSummary) && costSummary.length > 0 ? (
+                  costSummary.map((summary) => (
+                    <TableRow key={summary.provider}>
+                      <TableCell className="font-medium">{summary.provider}</TableCell>
+                      <TableCell className="text-right">${summary.total_cost.toFixed(4)}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-center text-muted-foreground">
+                      No provider usage data yet.
+                    </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -182,15 +193,34 @@ export default function CostTrackingPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Array.isArray(dailyCosts) && dailyCosts.map((dayCost, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-medium">{dayCost.date}</TableCell>
-                    <TableCell>{dayCost.provider}</TableCell>
-                    <TableCell className="text-right">${dayCost.total_cost.toFixed(4)}</TableCell>
+                {Array.isArray(dailyCosts) && dailyCosts.length > 0 ? (
+                  visibleDailyCosts.map((dayCost, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{dayCost.date}</TableCell>
+                      <TableCell>{dayCost.provider}</TableCell>
+                      <TableCell className="text-right">${dayCost.total_cost.toFixed(4)}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-muted-foreground">
+                      No daily cost entries yet.
+                    </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
+            {dailyCosts.length > 5 ? (
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  className="text-sm text-primary hover:underline"
+                  onClick={() => setShowAllDailyCosts((prev) => !prev)}
+                >
+                  {showAllDailyCosts ? "Show less" : `Show more (${dailyCosts.length - 5} more)`}
+                </button>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </div>

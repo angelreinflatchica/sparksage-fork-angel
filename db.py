@@ -301,9 +301,9 @@ async def get_daily_costs() -> list[dict]:
         SELECT 
             DATE(created_at) AS date, 
             provider, 
-            SUM(estimated_cost) AS total_cost
+            COALESCE(SUM(estimated_cost), 0) AS total_cost
         FROM analytics
-        WHERE estimated_cost > 0
+        WHERE provider IS NOT NULL
         GROUP BY DATE(created_at), provider
         ORDER BY date ASC, provider ASC
         """
@@ -317,8 +317,8 @@ async def get_total_cost_since(start_date: str) -> float:
     db = await get_db()
     cursor = await db.execute(
         """
-        SELECT SUM(estimated_cost) FROM analytics
-        WHERE created_at >= ? AND estimated_cost > 0
+        SELECT COALESCE(SUM(estimated_cost), 0) FROM analytics
+        WHERE created_at >= ? AND provider IS NOT NULL
         """,
         (start_date,)
     )
@@ -333,9 +333,9 @@ async def get_total_cost_by_provider() -> list[dict]:
         """
         SELECT 
             provider, 
-            SUM(estimated_cost) AS total_cost
+            COALESCE(SUM(estimated_cost), 0) AS total_cost
         FROM analytics
-        WHERE estimated_cost > 0
+        WHERE provider IS NOT NULL
         GROUP BY provider
         ORDER BY total_cost DESC
         """
