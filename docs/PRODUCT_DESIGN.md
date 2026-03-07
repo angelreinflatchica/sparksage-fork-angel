@@ -383,9 +383,9 @@ First visit redirects to the setup wizard. After setup, the admin dashboard is a
 - [ ] Role-based access control for commands
 
 ### Phase 4 — Advanced Features
-- [ ] Daily digest scheduler
-- [ ] Content moderation pipeline
-- [ ] Multi-language translation
+- [ ] Daily digest scheduler (P1)
+- [ ] Content moderation pipeline (P1)
+- [ ] Multi-language translation (P2)
 - [ ] Custom system prompts per channel
 - [ ] Per-channel provider override
 
