@@ -21,12 +21,18 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
-    headers,
-    body,
-    cache: "no-store",
-    ...rest,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      headers,
+      body,
+      cache: "no-store",
+      ...rest,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown network error";
+    throw new Error(`Network error while calling ${path}: ${message}`);
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
@@ -329,7 +335,7 @@ export const api = {
 
   // Plugins
   getPlugins: (token: string) =>
-    apiFetch<{ plugins: PluginItem[] }>("/api/plugins/", { token }),
+    apiFetch<{ plugins: PluginItem[] }>("/api/plugins", { token }),
 
   togglePlugin: (token: string, id: string, enabled: boolean) =>
     apiFetch<{ status: string; enabled: boolean }>("/api/plugins/toggle", {
