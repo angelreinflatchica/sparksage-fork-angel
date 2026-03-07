@@ -27,31 +27,29 @@ export function MessageList({ messages }: MessageListProps) {
       {messages.map((msg, i) => {
         const isUser = msg.role === "user";
         const isCodeReview = msg.content.startsWith("[Code Review]");
-        const displayContent = isCodeReview 
-          ? msg.content.replace("[Code Review]", "").trim() 
+        const displayContent = isCodeReview
+          ? msg.content.replace("[Code Review]", "").trim()
           : msg.content;
 
         return (
-          <div
-            key={i}
-            className={`flex ${isUser ? "justify-end" : "justify-start"}`}
-          >
+          <div key={i} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
             <div
               className={`max-w-[75%] rounded-lg px-4 py-2 ${
-                isUser
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted"
+                isUser ? "bg-primary text-primary-foreground" : "bg-muted"
               }`}
             >
-              <div className="flex items-center gap-2 mb-1">
-                {isCodeReview && (
-                  <Badge variant="secondary" className="text-[10px] h-4 gap-1 px-1.5 font-bold uppercase tracking-wider">
-                    <Terminal className="h-2.5 w-2.5" /> Code Review
-                  </Badge>
-                )}
-              </div>
               <p className="text-sm whitespace-pre-wrap">{displayContent}</p>
-              <div className={`mt-1 flex items-center gap-2 text-xs ${isUser ? "opacity-70" : "text-muted-foreground"}`}>
+              {isCodeReview && (
+                <Badge className="mt-2 inline-flex gap-1.5 rounded-full border border-amber-300/70 bg-amber-400 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-950 shadow-sm hover:bg-amber-400">
+                  <Terminal className="h-3 w-3" />
+                  Code Review
+                </Badge>
+              )}
+              <div
+                className={`mt-1 flex items-center gap-2 text-xs ${
+                  isUser ? "opacity-70" : "text-muted-foreground"
+                }`}
+              >
                 <span>{formatTime(msg.created_at)}</span>
                 {msg.provider && !isUser && (
                   <Badge variant="outline" className="text-xs px-1.5 py-0">
