@@ -5,12 +5,17 @@ interface FetchOptions extends RequestInit {
 }
 
 async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const { token, headers: customHeaders, ...rest } = options;
+  const { token, headers: customHeaders, body, ...rest } = options;
+
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     ...((customHeaders as Record<string, string>) || {}),
   };
+
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
@@ -18,6 +23,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 
   const res = await fetch(`${API_URL}${path}`, {
     headers,
+    body,
     cache: "no-store",
     ...rest,
   });
@@ -169,6 +175,7 @@ export interface PluginItem {
   author: string | null;
   description: string | null;
   enabled: boolean;
+  loaded?: boolean;
 }
 
 export const api = {
@@ -322,7 +329,7 @@ export const api = {
 
   // Plugins
   getPlugins: (token: string) =>
-    apiFetch<{ plugins: PluginItem[] }>("/api/plugins", { token }),
+    apiFetch<{ plugins: PluginItem[] }>("/api/plugins/", { token }),
 
   togglePlugin: (token: string, id: string, enabled: boolean) =>
     apiFetch<{ status: string; enabled: boolean }>("/api/plugins/toggle", {
@@ -342,4 +349,17 @@ export const api = {
       method: "POST",
       token,
     }),
+
+  uploadPlugin: (token: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiFetch<{ message: string; plugin_id: string; plugin_name: string }>(
+      "/api/plugins/upload",
+      {
+        method: "POST",
+        body: form,
+        token,
+      }
+    );
+  },
 };

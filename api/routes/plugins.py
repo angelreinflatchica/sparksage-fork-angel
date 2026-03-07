@@ -1,25 +1,30 @@
 from __future__ import annotations
 
-import os
 import json
 import logging
+import os
+import re
 import shutil
+import tempfile
 import zipfile
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
-from urllib.parse import urlparse
 
-import aiohttp
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+import httpx
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel, HttpUrl
 
 import db
-from plugin_manager import PluginManager # Assuming plugin_manager.py is in the same directory or accessible
+from plugin_manager import PluginManager
 
 if TYPE_CHECKING:
     from bot import SparkSageBot
 
 logger = logging.getLogger("sparksage.api")
 router = APIRouter()
+
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+SAFE_PLUGIN_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 # This will be set by main.py during startup
 plugin_manager: PluginManager | None = None
@@ -38,6 +43,223 @@ class PluginManifest(BaseModel):
 class PluginInstallRequest(BaseModel):
     url: HttpUrl
 
+
+class PluginToggleRequest(BaseModel):
+    id: str
+    enabled: bool
+
+
+class PluginListResponse(BaseModel):
+    plugins: list[PluginManifest]
+
+
+class PluginInstallResponse(BaseModel):
+    message: str
+    plugin_id: str
+    plugin_name: str
+
+
+class PluginInstallError(Exception):
+    def __init__(self, message: str, status_code: int = 400):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+
+
+def _normalize_zip_name(name: str) -> str:
+    return name.replace("\\", "/")
+
+
+def _is_safe_zip_member(path: PurePosixPath) -> bool:
+    if path.is_absolute() or len(path.parts) == 0:
+        return False
+    if any(part in ("", ".", "..") for part in path.parts):
+        return False
+    # Reject Windows drive prefixes, e.g. C:/...
+    if ":" in path.parts[0]:
+        return False
+    return True
+
+
+def _ensure_not_symlink(info: zipfile.ZipInfo):
+    mode = (info.external_attr >> 16) & 0o170000
+    if mode == 0o120000:
+        raise PluginInstallError(
+            f"Archive contains unsupported symlink entry: {info.filename}",
+            status_code=400,
+        )
+
+
+async def _parse_plugin_archive(zip_path: Path) -> tuple[str, dict]:
+    try:
+        with zipfile.ZipFile(zip_path, "r") as archive:
+            infos = archive.infolist()
+            if not infos:
+                raise PluginInstallError("Uploaded archive is empty.")
+
+            manifest_roots: set[str] = set()
+            member_names: set[str] = set()
+
+            for info in infos:
+                _ensure_not_symlink(info)
+                normalized = _normalize_zip_name(info.filename)
+                member_path = PurePosixPath(normalized)
+                if not _is_safe_zip_member(member_path):
+                    raise PluginInstallError(
+                        f"Archive contains an unsafe path: {info.filename}",
+                        status_code=400,
+                    )
+                if info.is_dir():
+                    continue
+
+                member_names.add(member_path.as_posix())
+                if member_path.name == "manifest.json" and len(member_path.parts) >= 2:
+                    manifest_roots.add(member_path.parts[0])
+
+            if len(manifest_roots) != 1:
+                raise PluginInstallError(
+                    "Archive must contain exactly one plugin folder with a manifest.json file.",
+                    status_code=400,
+                )
+
+            plugin_id = next(iter(manifest_roots))
+            if not SAFE_PLUGIN_ID_RE.match(plugin_id):
+                raise PluginInstallError(
+                    "Plugin folder name must use only letters, numbers, hyphens, or underscores.",
+                    status_code=400,
+                )
+
+            manifest_member = f"{plugin_id}/manifest.json"
+            if manifest_member not in member_names:
+                raise PluginInstallError("Plugin manifest.json was not found in the plugin root folder.")
+
+            try:
+                with archive.open(manifest_member, "r") as manifest_file:
+                    manifest = json.load(manifest_file)
+            except json.JSONDecodeError as exc:
+                raise PluginInstallError(f"manifest.json is not valid JSON: {exc}") from exc
+
+            if not isinstance(manifest, dict):
+                raise PluginInstallError("manifest.json must be a JSON object.")
+
+            cog = manifest.get("cog")
+            if not isinstance(cog, str) or not cog.strip():
+                raise PluginInstallError("manifest.json is missing required 'cog' field.")
+
+            cog_path = PurePosixPath(cog)
+            if cog_path.is_absolute() or ".." in cog_path.parts or len(cog_path.parts) == 0:
+                raise PluginInstallError("manifest.json contains an invalid 'cog' path.")
+
+            expected_cog_path = f"{plugin_id}/{cog_path.as_posix()}"
+            if expected_cog_path not in member_names:
+                raise PluginInstallError(
+                    f"Cog file referenced by manifest was not found: {cog}",
+                    status_code=400,
+                )
+
+            return plugin_id, manifest
+    except zipfile.BadZipFile as exc:
+        raise PluginInstallError("Uploaded file is not a valid zip archive.", status_code=400) from exc
+
+
+def _extract_archive_safely(zip_path: Path, destination: Path):
+    with zipfile.ZipFile(zip_path, "r") as archive:
+        for info in archive.infolist():
+            _ensure_not_symlink(info)
+            member_path = PurePosixPath(_normalize_zip_name(info.filename))
+            if not _is_safe_zip_member(member_path):
+                raise PluginInstallError(
+                    f"Archive contains an unsafe path: {info.filename}",
+                    status_code=400,
+                )
+
+            target_path = destination.joinpath(*member_path.parts)
+            if info.is_dir():
+                target_path.mkdir(parents=True, exist_ok=True)
+                continue
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(info, "r") as src, open(target_path, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+
+
+async def _install_plugin_zip(zip_path: Path, manager: PluginManager) -> tuple[str, str]:
+    plugin_id, manifest = await _parse_plugin_archive(zip_path)
+
+    plugins_dir = Path(manager.plugins_dir)
+    target_dir = plugins_dir / plugin_id
+    if target_dir.exists():
+        raise PluginInstallError(f"Plugin '{plugin_id}' is already installed.", status_code=409)
+
+    installed_dir: Path | None = None
+    try:
+        with tempfile.TemporaryDirectory(prefix="plugin_unpack_") as temp_dir:
+            temp_root = Path(temp_dir)
+            _extract_archive_safely(zip_path, temp_root)
+
+            extracted_plugin_dir = temp_root / plugin_id
+            if not extracted_plugin_dir.is_dir():
+                raise PluginInstallError("Extracted archive is missing the plugin root folder.")
+
+            shutil.move(str(extracted_plugin_dir), str(target_dir))
+            installed_dir = target_dir
+
+        await manager.scan_plugins()
+
+        known_plugins = await db.get_plugins()
+        plugin_row = next((p for p in known_plugins if p["id"] == plugin_id), None)
+        if plugin_row is None:
+            raise PluginInstallError("Plugin metadata could not be registered after installation.")
+
+        plugin_name = plugin_row.get("name") or manifest.get("name") or plugin_id
+        return plugin_id, plugin_name
+    except PluginInstallError:
+        if installed_dir and installed_dir.exists():
+            shutil.rmtree(installed_dir, ignore_errors=True)
+        raise
+    except Exception as exc:
+        if installed_dir and installed_dir.exists():
+            shutil.rmtree(installed_dir, ignore_errors=True)
+        raise PluginInstallError(f"Unexpected installation error: {exc}", status_code=500) from exc
+
+
+async def _collect_plugins() -> list[PluginManifest]:
+    if plugin_manager is None:
+        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
+
+    db_plugins = await db.get_plugins()
+    plugins: list[PluginManifest] = []
+
+    for p in db_plugins:
+        loaded = False
+        try:
+            folder_path = os.path.join(plugin_manager.plugins_dir, p["id"])
+            manifest_path = os.path.join(folder_path, "manifest.json")
+            with open(manifest_path, "r", encoding="utf-8") as file:
+                manifest = json.load(file)
+            cog_filename = manifest.get("cog")
+            if cog_filename:
+                module_name = cog_filename.replace(".py", "")
+                extension_path = f"plugins.{p['id']}.{module_name}"
+                loaded = extension_path in plugin_manager.bot.extensions
+        except Exception:
+            loaded = False
+
+        plugins.append(
+            PluginManifest(
+                id=p["id"],
+                name=p["name"],
+                version=p["version"],
+                author=p["author"],
+                description=p["description"],
+                cog="",
+                enabled=bool(p["enabled"]),
+                loaded=loaded,
+            )
+        )
+
+    return plugins
+
 @router.on_event("startup")
 async def startup_event():
     global plugin_manager, bot_instance
@@ -50,41 +272,16 @@ async def startup_event():
     else:
         logger.warning("Bot instance not available at API startup. Plugin manager will not be initialized.")
 
-@router.get("/plugins", response_model=list[PluginManifest])
+@router.get("", response_model=PluginListResponse)
 async def list_plugins():
-    """List all available plugins with their current status."""
-    if plugin_manager is None:
-        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
-    
-    db_plugins = await db.get_plugins()
-    plugins = []
-    for p in db_plugins:
-        # Check if the plugin is actually loaded in the bot
-        loaded = False
-        try:
-            folder_path = os.path.join(plugin_manager.plugins_dir, p["id"])
-            manifest_path = os.path.join(folder_path, "manifest.json")
-            with open(manifest_path, "r", encoding="utf-8") as f:
-                manifest = json.load(f)
-            cog_filename = manifest.get("cog")
-            if cog_filename:
-                module_name = cog_filename.replace(".py", "")
-                extension_path = f"plugins.{p['id']}.{module_name}"
-                loaded = extension_path in plugin_manager.bot.extensions
-        except Exception:
-            loaded = False # Manifest or cog file might be corrupt/missing
+    """List plugins (dashboard response shape)."""
+    return PluginListResponse(plugins=await _collect_plugins())
 
-        plugins.append(PluginManifest(
-            id=p["id"],
-            name=p["name"],
-            version=p["version"],
-            author=p["author"],
-            description=p["description"],
-            cog="", # cog is not stored in DB, so we omit it for list
-            enabled=bool(p["enabled"]), # Add enabled status
-            loaded=loaded # Add loaded status
-        ))
-    return plugins
+
+@router.get("/plugins", response_model=list[PluginManifest])
+async def list_plugins_legacy():
+    """Legacy list route retained for backward compatibility."""
+    return await _collect_plugins()
 
 @router.post("/plugins/{plugin_id}/enable")
 async def enable_plugin(plugin_id: str):
@@ -98,6 +295,24 @@ async def enable_plugin(plugin_id: str):
     
     return {"message": f"Plugin {plugin_id} enabled successfully."}
 
+
+@router.post("/toggle")
+async def toggle_plugin(request: PluginToggleRequest):
+    """Toggle plugin enabled state (dashboard endpoint)."""
+    if plugin_manager is None:
+        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
+
+    if request.enabled:
+        success, message = await plugin_manager.load_plugin(request.id)
+        if not success:
+            raise HTTPException(status_code=400, detail=f"Failed to enable plugin: {message}")
+    else:
+        success, message = await plugin_manager.unload_plugin(request.id)
+        if not success:
+            raise HTTPException(status_code=400, detail=f"Failed to disable plugin: {message}")
+
+    return {"status": "ok", "enabled": request.enabled}
+
 @router.post("/plugins/{plugin_id}/disable")
 async def disable_plugin(plugin_id: str):
     """Disable a specific plugin."""
@@ -110,77 +325,115 @@ async def disable_plugin(plugin_id: str):
     
     return {"message": f"Plugin {plugin_id} disabled successfully."}
 
-@router.post("/plugins/install")
-async def install_plugin(request: PluginInstallRequest, background_tasks: BackgroundTasks):
-    """Install a new plugin from a URL."""
+
+@router.post("/{plugin_id}/reload")
+async def reload_plugin(plugin_id: str):
+    """Reload a specific plugin (dashboard endpoint)."""
     if plugin_manager is None:
         raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
-    
-    # Simple validation for now: expect a zip file.
-    if not request.url.path.endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Only zip file installations are supported for now.")
 
-    background_tasks.add_task(_install_plugin_from_url, request.url, plugin_manager)
-    return {"message": "Plugin installation initiated in background."}
+    success, message = await plugin_manager.reload_plugin(plugin_id)
+    if not success:
+        raise HTTPException(status_code=400, detail=f"Failed to reload plugin: {message}")
 
-async def _install_plugin_from_url(url: HttpUrl, manager: PluginManager):
-    logger.info(f"Starting plugin installation from {url}")
+    return {"status": "ok"}
+
+
+@router.post("/sync")
+async def sync_plugins():
+    """Sync application commands after plugin changes (dashboard endpoint)."""
+    if plugin_manager is None:
+        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
+
+    success, message = await plugin_manager.sync_commands()
+    if not success:
+        raise HTTPException(status_code=400, detail=f"Failed to sync commands: {message}")
+
+    return {"status": "ok"}
+
+@router.post("/upload", response_model=PluginInstallResponse)
+async def upload_plugin(file: UploadFile = File(...)):
+    """Upload and install a plugin zip file."""
+    if plugin_manager is None:
+        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
+
+    filename = file.filename or ""
+    if not filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only .zip plugin archives are supported.")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as temp_file:
+        temp_zip_path = Path(temp_file.name)
+
+    size = 0
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(str(url)) as response:
-                response.raise_for_status()
-                # Create a temporary file to save the zip
-                temp_zip_path = os.path.join(manager.plugins_dir, "temp_plugin.zip")
-                with open(temp_zip_path, "wb") as f:
-                    while True:
-                        chunk = await response.content.read(1024)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-                
-                # Extract the zip file
-                with zipfile.ZipFile(temp_zip_path, 'r') as zip_ref:
-                    # Assuming the zip contains a single root folder for the plugin
-                    # We'll need to be careful with security here in a real app
-                    # For now, let's just extract to the plugins directory and hope for the best
-                    # TODO: Add more robust validation and security checks for plugin zips
-                    zip_ref.extractall(manager.plugins_dir)
-                
-                # Find the newly extracted plugin folder (this is a simple heuristic)
-                extracted_folder = None
-                for name in os.listdir(manager.plugins_dir):
-                    if os.path.isdir(os.path.join(manager.plugins_dir, name)) and name != "temp_plugin.zip" and name != "trivia": # Exclude existing and temp
-                        # Further check for manifest.json
-                        if os.path.exists(os.path.join(manager.plugins_dir, name, "manifest.json")):
-                            extracted_folder = name
-                            break
-                
-                if not extracted_folder:
-                    raise Exception("Could not find extracted plugin folder with manifest.json")
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
 
-                # Clean up the temporary zip file
-                os.remove(temp_zip_path)
+            size += len(chunk)
+            if size > MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Plugin archive is too large. Maximum size is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+                )
 
-                # Sync the new plugin with the database
-                await manager.scan_plugins()
-                logger.info(f"Plugin {extracted_folder} installed and synced with DB.")
-                
-                # Load the plugin if it's new and enabled by default (or as per manifest)
-                # For now, let's assume newly installed plugins should be enabled if not already
-                db_plugin = await db.get_plugins()
-                new_plugin_data = next((p for p in db_plugin if p["id"] == extracted_folder), None)
-                
-                if new_plugin_data and not new_plugin_data["enabled"]:
-                    logger.info(f"Enabling newly installed plugin: {extracted_folder}")
-                    await manager.load_plugin(extracted_folder)
+            with open(temp_zip_path, "ab") as handle:
+                handle.write(chunk)
 
-                logger.info(f"Successfully installed plugin from {url}")
+        plugin_id, plugin_name = await _install_plugin_zip(temp_zip_path, plugin_manager)
+        return PluginInstallResponse(
+            message=f"Plugin '{plugin_name}' installed successfully. Enable it to start using it.",
+            plugin_id=plugin_id,
+            plugin_name=plugin_name,
+        )
+    except PluginInstallError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    finally:
+        await file.close()
+        if temp_zip_path.exists():
+            temp_zip_path.unlink(missing_ok=True)
 
-    except Exception as e:
-        logger.error(f"Error installing plugin from {url}: {e}")
-        if os.path.exists(temp_zip_path):
-            os.remove(temp_zip_path)
-        # Attempt to clean up partially extracted folders if possible
-        # This is tricky and might need more sophisticated rollback
-        if 'extracted_folder' in locals() and os.path.exists(os.path.join(manager.plugins_dir, extracted_folder)):
-            shutil.rmtree(os.path.join(manager.plugins_dir, extracted_folder))
+
+@router.post("/install", response_model=PluginInstallResponse)
+async def install_plugin(request: PluginInstallRequest):
+    """Install a plugin from a direct zip URL (legacy helper endpoint)."""
+    if plugin_manager is None:
+        raise HTTPException(status_code=500, detail="Plugin manager not initialized.")
+
+    if not str(request.url).lower().endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Only .zip plugin archives are supported.")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as temp_file:
+        temp_zip_path = Path(temp_file.name)
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            response = await client.get(str(request.url))
+            response.raise_for_status()
+
+            content = response.content
+            if len(content) > MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Plugin archive is too large. Maximum size is {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+                )
+
+            with open(temp_zip_path, "wb") as handle:
+                handle.write(content)
+
+        plugin_id, plugin_name = await _install_plugin_zip(temp_zip_path, plugin_manager)
+        return PluginInstallResponse(
+            message=f"Plugin '{plugin_name}' installed successfully. Enable it to start using it.",
+            plugin_id=plugin_id,
+            plugin_name=plugin_name,
+        )
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to download plugin archive: {exc}") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=400, detail=f"Error fetching plugin archive: {exc}") from exc
+    except PluginInstallError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    finally:
+        if temp_zip_path.exists():
+            temp_zip_path.unlink(missing_ok=True)
