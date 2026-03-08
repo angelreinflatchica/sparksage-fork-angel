@@ -20,6 +20,7 @@ const DISCORD_REDIRECT_URI = process.env.NEXT_PUBLIC_DISCORD_REDIRECT_URI?.trim(
 export default function DashboardOverview() {
   const { data: session } = useSession();
   const [botStatus, setBotStatus] = useState<BotStatus | null>(null);
+  const [botStatusLoading, setBotStatusLoading] = useState(true);
   const [providersData, setProvidersData] = useState<ProvidersResponse | null>(null);
   const [config, setConfig] = useState<Record<string, string>>({});
   const [quotaSummary, setQuotaSummary] = useState<QuotaSummary | null>(null);
@@ -30,14 +31,59 @@ export default function DashboardOverview() {
 
   useEffect(() => {
     if (!token) return;
+    let cancelled = false;
+    let retries = 0;
+    const maxRetries = 6;
+
+    const fetchBotStatus = async () => {
+      try {
+        const status = await api.getBotStatus(token);
+        if (cancelled) return;
+        setBotStatus(status);
+
+        // If bot startup is still warming up, poll a few times before settling.
+        if (!status.online && retries < maxRetries) {
+          retries += 1;
+          setTimeout(fetchBotStatus, 1500);
+        } else {
+          setBotStatusLoading(false);
+        }
+      } catch {
+        if (cancelled) return;
+        if (retries < maxRetries) {
+          retries += 1;
+          setTimeout(fetchBotStatus, 1500);
+        } else {
+          setBotStatusLoading(false);
+        }
+      }
+    };
+
+    fetchBotStatus();
+
+    const intervalId = window.setInterval(async () => {
+      try {
+        const status = await api.getBotStatus(token);
+        if (!cancelled) setBotStatus(status);
+      } catch {
+        // Keep last known status on periodic refresh failures.
+      }
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
     Promise.allSettled([
-      api.getBotStatus(token),
       api.getProviders(token),
       api.getConfig(token),
       api.getQuotaSummary(token),
       api.getCostSummary(token),
-    ]).then(([botResult, provResult, configResult, quotaResult, costResult]) => {
-      if (botResult.status === "fulfilled") setBotStatus(botResult.value);
+    ]).then(([provResult, configResult, quotaResult, costResult]) => {
       if (provResult.status === "fulfilled") setProvidersData(provResult.value);
       if (configResult.status === "fulfilled") setConfig(configResult.value.config);
       if (quotaResult.status === "fulfilled") setQuotaSummary(quotaResult.value);
@@ -183,7 +229,7 @@ export default function DashboardOverview() {
                       : "text-muted-foreground"
                   }
                 >
-                  {botStatus?.online ? "Online" : "Offline"}
+                  {botStatusLoading ? "Checking..." : botStatus?.online ? "Online" : "Offline"}
                 </Badge>
                 {botStatus?.online && (
                   <span className="text-xs text-muted-foreground">
