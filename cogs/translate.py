@@ -78,15 +78,16 @@ class Translate(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
-        enabled = await database.get_config("TRANSLATE_AUTO_ENABLED", "0")
+        guild_id = str(message.guild.id)
+        enabled = await database.get_effective_config("TRANSLATE_AUTO_ENABLED", guild_id=guild_id, default="0")
         if enabled != "1":
             return
 
-        auto_channel_id = await database.get_config("TRANSLATE_AUTO_CHANNEL_ID")
+        auto_channel_id = await database.get_effective_config("TRANSLATE_AUTO_CHANNEL_ID", guild_id=guild_id)
         if not auto_channel_id or str(message.channel.id) != auto_channel_id:
             return
 
-        target_lang = await database.get_config("TRANSLATE_AUTO_TARGET", "English")
+        target_lang = await database.get_effective_config("TRANSLATE_AUTO_TARGET", guild_id=guild_id, default="English")
 
         # Use AI to detect if translation is needed and translate if so
         # Prompt logic: Detect language, if not target_lang, translate. 

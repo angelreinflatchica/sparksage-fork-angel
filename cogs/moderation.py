@@ -94,11 +94,12 @@ class Moderation(commands.Cog):
         if message.author.bot or not message.guild:
             return
             
-        enabled = await database.get_config("MODERATION_ENABLED", "0")
+        guild_id = str(message.guild.id)
+        enabled = await database.get_effective_config("MODERATION_ENABLED", guild_id=guild_id, default="0")
         if enabled != "1":
             return
             
-        mod_log_id_str = await database.get_config("MOD_LOG_CHANNEL_ID")
+        mod_log_id_str = await database.get_effective_config("MOD_LOG_CHANNEL_ID", guild_id=guild_id)
         if not mod_log_id_str:
             return
             
@@ -114,7 +115,7 @@ class Moderation(commands.Cog):
         if message.channel.id == mod_log_id:
             return
 
-        sensitivity = await database.get_config("MODERATION_SENSITIVITY", "medium")
+        sensitivity = await database.get_effective_config("MODERATION_SENSITIVITY", guild_id=guild_id, default="medium")
 
         # Moderation prompt
         prompt = (

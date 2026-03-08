@@ -1,18 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Activity, Cpu, Wifi, WifiOff, Server, ArrowRight, ShieldCheck, Calendar, Languages, Users } from "lucide-react";
+import { Activity, Cpu, Wifi, WifiOff, Server, ArrowRight, ShieldCheck, Calendar, Languages, Users, ExternalLink, Settings, Plug, MessagesSquare } from "lucide-react";
 import { api } from "@/lib/api";
-import type { BotStatus, ProvidersResponse } from "@/lib/api";
+import type { BotStatus, ProvidersResponse, QuotaSummary, CostProviderSummary } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+
+const DISCORD_CLIENT_ID = "1473885802227302410";
+const DISCORD_BOT_PERMISSIONS = "2885120658966592";
+const DISCORD_BOT_SCOPE = "bot applications.commands";
+const DISCORD_OAUTH_BASE_URL = "https://discord.com/oauth2/authorize";
 
 export default function DashboardOverview() {
   const { data: session } = useSession();
   const [botStatus, setBotStatus] = useState<BotStatus | null>(null);
   const [providersData, setProvidersData] = useState<ProvidersResponse | null>(null);
   const [config, setConfig] = useState<Record<string, string>>({});
+  const [quotaSummary, setQuotaSummary] = useState<QuotaSummary | null>(null);
+  const [costSummary, setCostSummary] = useState<CostProviderSummary[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   const token = (session as { accessToken?: string })?.accessToken;
@@ -23,13 +33,69 @@ export default function DashboardOverview() {
       api.getBotStatus(token),
       api.getProviders(token),
       api.getConfig(token),
-    ]).then(([botResult, provResult, configResult]) => {
+      api.getQuotaSummary(token),
+      api.getCostSummary(token),
+    ]).then(([botResult, provResult, configResult, quotaResult, costResult]) => {
       if (botResult.status === "fulfilled") setBotStatus(botResult.value);
       if (provResult.status === "fulfilled") setProvidersData(provResult.value);
       if (configResult.status === "fulfilled") setConfig(configResult.value.config);
+      if (quotaResult.status === "fulfilled") setQuotaSummary(quotaResult.value);
+      if (costResult.status === "fulfilled") setCostSummary(costResult.value);
       setLoading(false);
     });
   }, [token]);
+
+  const userQuotaLimit = quotaSummary?.limits.user_per_minute || 0;
+  const guildQuotaLimit = quotaSummary?.limits.guild_per_minute || 0;
+  const topUserUsed = quotaSummary?.users?.[0]?.used || 0;
+  const topGuildUsed = quotaSummary?.guilds?.[0]?.used || 0;
+  const userQuotaPct = userQuotaLimit > 0 ? Math.min(100, Math.round((topUserUsed / userQuotaLimit) * 100)) : 0;
+  const guildQuotaPct = guildQuotaLimit > 0 ? Math.min(100, Math.round((topGuildUsed / guildQuotaLimit) * 100)) : 0;
+  const totalEstimatedCost = (costSummary || []).reduce((sum, entry) => sum + (entry.total_cost || 0), 0);
+
+  const configChecks = [
+    { label: "System prompt configured", done: Boolean(config.SYSTEM_PROMPT?.trim()) },
+    {
+      label: "Welcome setup complete",
+      done:
+        config.WELCOME_ENABLED !== "1" ||
+        (Boolean(config.WELCOME_CHANNEL_ID?.trim()) && Boolean(config.WELCOME_MESSAGE?.trim())),
+    },
+    {
+      label: "Digest setup complete",
+      done:
+        config.DIGEST_ENABLED !== "1" ||
+        (Boolean(config.DIGEST_CHANNEL_ID?.trim()) && Boolean(config.DIGEST_TIME?.trim())),
+    },
+    {
+      label: "Moderation setup complete",
+      done:
+        config.MODERATION_ENABLED !== "1" ||
+        (Boolean(config.MOD_LOG_CHANNEL_ID?.trim()) && Boolean(config.MODERATION_SENSITIVITY?.trim())),
+    },
+    {
+      label: "Translation setup complete",
+      done:
+        config.TRANSLATE_AUTO_ENABLED !== "1" ||
+        (Boolean(config.TRANSLATE_AUTO_CHANNEL_ID?.trim()) && Boolean(config.TRANSLATE_AUTO_TARGET?.trim())),
+    },
+  ];
+  const completedChecks = configChecks.filter((item) => item.done).length;
+  const configCompletenessPct = Math.round((completedChecks / configChecks.length) * 100);
+
+  function handleAddToDiscord(event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    const redirectUri = `${window.location.origin}/dashboard/discord/success`;
+    const params = new URLSearchParams({
+      client_id: DISCORD_CLIENT_ID,
+      permissions: DISCORD_BOT_PERMISSIONS,
+      integration_type: "0",
+      scope: DISCORD_BOT_SCOPE,
+      redirect_uri: redirectUri,
+      response_type: "code",
+    });
+    window.location.assign(`${DISCORD_OAUTH_BASE_URL}?${params.toString()}`);
+  }
 
   const primaryProvider = providersData?.providers.find((p) => p.is_primary);
 
@@ -58,12 +124,27 @@ export default function DashboardOverview() {
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Overview</h1>
-        {botStatus?.online && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-            Connected as <span className="font-semibold text-foreground">{botStatus.username}</span>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {botStatus?.online && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              Connected as <span className="font-semibold text-foreground">{botStatus.username}</span>
+            </div>
+          )}
+          <Button
+            asChild
+            className="h-9 rounded-full bg-[#5865F2] px-4 font-semibold text-white shadow-sm hover:bg-[#4752C4] active:bg-[#3F4AB8]"
+          >
+            <a
+              href={`${DISCORD_OAUTH_BASE_URL}?client_id=${DISCORD_CLIENT_ID}&permissions=${DISCORD_BOT_PERMISSIONS}&integration_type=0&scope=bot+applications.commands`}
+              onClick={handleAddToDiscord}
+              aria-label="Add SparkSage bot to a Discord server"
+            >
+              Add to Discord
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </Button>
+        </div>
       </div>
 
       {/* Stats cards */}
@@ -150,6 +231,33 @@ export default function DashboardOverview() {
         </Card>
       </div>
 
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Quick Actions</CardTitle>
+          <CardDescription>Common setup and management tasks.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/dashboard/settings">
+              <Settings className="h-4 w-4" />
+              Open Settings
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/dashboard/plugins">
+              <Plug className="h-4 w-4" />
+              Manage Plugins
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/dashboard/conversations">
+              <MessagesSquare className="h-4 w-4" />
+              View Conversations
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 md:grid-cols-2">
         {/* Module Status */}
         <Card>
@@ -207,6 +315,63 @@ export default function DashboardOverview() {
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Configuration Completeness</CardTitle>
+            <CardDescription>
+              {completedChecks}/{configChecks.length} setup checks completed
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span>Overall readiness</span>
+                <span className="font-medium">{configCompletenessPct}%</span>
+              </div>
+              <Progress value={configCompletenessPct} />
+            </div>
+            <div className="space-y-2">
+              {configChecks.map((item) => (
+                <div key={item.label} className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{item.label}</span>
+                  <Badge variant={item.done ? "outline" : "secondary"}>
+                    {item.done ? "Done" : "Missing"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Quota and Cost Snapshot</CardTitle>
+            <CardDescription>Live usage pressure and current spend.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Top User Quota</span>
+                <span className="font-medium">{topUserUsed}/{userQuotaLimit || "--"}</span>
+              </div>
+              <Progress value={userQuotaPct} />
+            </div>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Top Server Quota</span>
+                <span className="font-medium">{topGuildUsed}/{guildQuotaLimit || "--"}</span>
+              </div>
+              <Progress value={guildQuotaPct} />
+            </div>
+            <div className="rounded-lg border bg-muted/40 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Estimated total cost</p>
+              <p className="text-lg font-semibold">${totalEstimatedCost.toFixed(4)}</p>
+            </div>
           </CardContent>
         </Card>
       </div>
