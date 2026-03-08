@@ -63,6 +63,7 @@ export interface ProvidersResponse {
 
 export interface ChannelItem {
   channel_id: string;
+  guild_id?: string | null;
   channel_name?: string | null;
   message_count: number;
   last_active: string;
@@ -88,6 +89,12 @@ export interface BotStatus {
   guild_count: number;
   guilds: GuildInfo[];
   uptime?: number | null;
+}
+
+export interface GuildChannel {
+  id: string;
+  name: string;
+  type: string;
 }
 
 export interface TestProviderResult {
@@ -245,11 +252,14 @@ export const api = {
     apiFetch<{ user_id: string; role: string }>("/api/auth/me", { token }),
 
   // Config
-  getConfig: (token: string) =>
-    apiFetch<{ config: Record<string, string> }>("/api/config", { token }),
+  getConfig: (token: string, guildId?: string) =>
+    apiFetch<{ config: Record<string, string> }>(
+      guildId ? `/api/config?guild_id=${guildId}` : "/api/config",
+      { token }
+    ),
 
-  updateConfig: (token: string, values: Record<string, string>) =>
-    apiFetch<{ status: string }>("/api/config", {
+  updateConfig: (token: string, values: Record<string, string>, guildId?: string) =>
+    apiFetch<{ status: string }>(guildId ? `/api/config?guild_id=${guildId}` : "/api/config", {
       method: "PUT",
       body: JSON.stringify({ values }),
       token,
@@ -276,6 +286,12 @@ export const api = {
   // Bot
   getBotStatus: (token: string) =>
     apiFetch<BotStatus>("/api/bot/status", { token }),
+
+  getBotGuilds: (token: string) =>
+    apiFetch<{ guilds: GuildInfo[] }>("/api/bot/guilds", { token }),
+
+  getGuildChannels: (token: string, guildId: string) =>
+    apiFetch<{ channels: GuildChannel[] }>(`/api/bot/guilds/${guildId}/channels`, { token }),
 
   // Conversations
   getConversations: (token: string) =>
@@ -431,4 +447,10 @@ export const api = {
       }
     );
   },
+
+  deletePlugin: (token: string, id: string) =>
+    apiFetch<{ status: string; plugin_id: string }>(`/api/plugins/${id}`, {
+      method: "DELETE",
+      token,
+    }),
 };

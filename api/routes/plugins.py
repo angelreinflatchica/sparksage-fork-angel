@@ -457,3 +457,42 @@ async def install_plugin(request: PluginInstallRequest):
     finally:
         if temp_zip_path.exists():
             temp_zip_path.unlink(missing_ok=True)
+
+
+@router.delete("/{plugin_id}")
+async def delete_plugin(plugin_id: str):
+    """Remove an installed plugin from disk and metadata."""
+    manager = await _ensure_plugin_manager(require_bot=False)
+
+    if not SAFE_PLUGIN_ID_RE.match(plugin_id):
+        raise HTTPException(status_code=400, detail="Invalid plugin id.")
+
+    resolved_id, manifest = await manager._resolve_plugin_id(plugin_id)
+    target_id = resolved_id or plugin_id
+    target_dir = Path(manager.plugins_dir) / target_id
+
+    if resolved_id is None and not target_dir.exists():
+        known_plugins = await db.get_plugins()
+        if not any(p["id"] == plugin_id for p in known_plugins):
+            raise HTTPException(status_code=404, detail=f"Plugin '{plugin_id}' was not found.")
+
+    # If a bot is attached and plugin is loaded, unload before deletion.
+    if manager.bot is not None and resolved_id is not None and manifest is not None:
+        success, message = await manager.unload_plugin(plugin_id)
+        if not success:
+            raise HTTPException(status_code=400, detail=f"Failed to unload plugin before delete: {message}")
+
+    if target_dir.exists() and target_dir.is_dir():
+        shutil.rmtree(target_dir, ignore_errors=True)
+
+    # Clean stale metadata and ensure requested id is removed.
+    await manager.scan_plugins()
+    await db.delete_plugin(plugin_id)
+    if resolved_id and resolved_id != plugin_id:
+        await db.delete_plugin(resolved_id)
+
+    # Keep command registry in sync when bot is available.
+    if manager.bot is not None:
+        await manager.sync_commands()
+
+    return {"status": "ok", "plugin_id": target_id}

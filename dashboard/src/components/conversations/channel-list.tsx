@@ -16,6 +16,7 @@ import {
 interface ChannelListProps {
   channels: ChannelItem[];
   onDelete: (channelId: string) => void;
+  guildNamesById?: Record<string, string>;
 }
 
 function formatDate(dateStr: string) {
@@ -23,7 +24,7 @@ function formatDate(dateStr: string) {
   return date.toLocaleString();
 }
 
-export function ChannelList({ channels, onDelete }: ChannelListProps) {
+export function ChannelList({ channels, onDelete, guildNamesById = {} }: ChannelListProps) {
   if (channels.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
@@ -52,6 +53,11 @@ export function ChannelList({ channels, onDelete }: ChannelListProps) {
               >
                 #{ch.channel_name || ch.channel_id}
               </Link>
+              {ch.guild_id && (
+                <p className="text-xs text-muted-foreground">
+                  Server: {guildNamesById[ch.guild_id] || "Unknown server"}
+                </p>
+              )}
               {ch.channel_name && (
                 <p className="font-mono text-xs text-muted-foreground">ID: {ch.channel_id}</p>
               )}

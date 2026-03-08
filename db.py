@@ -30,6 +30,13 @@ async def init_db():
             value TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS guild_config (
+            guild_id TEXT NOT NULL,
+            key      TEXT NOT NULL,
+            value    TEXT NOT NULL,
+            PRIMARY KEY (guild_id, key)
+        );
+
         CREATE TABLE IF NOT EXISTS conversations (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             channel_id TEXT    NOT NULL,
@@ -167,6 +174,20 @@ async def get_all_config() -> dict[str, str]:
     return {row["key"]: row["value"] for row in rows}
 
 
+async def get_all_config_for_guild(guild_id: str) -> dict[str, str]:
+    """Return global config merged with guild overrides."""
+    merged = await get_all_config()
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT key, value FROM guild_config WHERE guild_id = ?",
+        (guild_id,),
+    )
+    rows = await cursor.fetchall()
+    for row in rows:
+        merged[row["key"]] = row["value"]
+    return merged
+
+
 async def set_config(key: str, value: str):
     """Set a config value in the database."""
     db = await get_db()
@@ -183,6 +204,40 @@ async def set_config_bulk(data: dict[str, str]):
     await db.executemany(
         "INSERT INTO config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         list(data.items()),
+    )
+    await db.commit()
+
+
+async def get_guild_config(guild_id: str, key: str, default: str | None = None) -> str | None:
+    """Get a guild-scoped config value."""
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT value FROM guild_config WHERE guild_id = ? AND key = ?",
+        (guild_id, key),
+    )
+    row = await cursor.fetchone()
+    return row["value"] if row else default
+
+
+async def get_effective_config(key: str, guild_id: str | None = None, default: str | None = None) -> str | None:
+    """Get config value with optional guild override, falling back to global value."""
+    if guild_id:
+        guild_value = await get_guild_config(guild_id, key)
+        if guild_value is not None:
+            return guild_value
+    return await get_config(key, default)
+
+
+async def set_guild_config_bulk(guild_id: str, data: dict[str, str]):
+    """Set multiple guild-scoped config values at once."""
+    if not data:
+        return
+
+    db = await get_db()
+    await db.executemany(
+        "INSERT INTO guild_config (guild_id, key, value) VALUES (?, ?, ?) "
+        "ON CONFLICT(guild_id, key) DO UPDATE SET value = excluded.value",
+        [(guild_id, key, value) for key, value in data.items()],
     )
     await db.commit()
 
@@ -384,6 +439,15 @@ async def list_channels() -> list[dict]:
             conv.channel_id,
             COUNT(*) as message_count,
             MAX(conv.created_at) as last_active,
+                        (
+                                SELECT a.guild_id
+                                FROM analytics a
+                                WHERE a.channel_id = conv.channel_id
+                                    AND a.guild_id IS NOT NULL
+                                    AND a.guild_id != ''
+                                ORDER BY a.id DESC
+                                LIMIT 1
+                        ) as guild_id,
             (
                 SELECT a.channel_name
                 FROM analytics a
@@ -513,6 +577,13 @@ async def remove_plugins_not_in(valid_plugin_ids: set[str]):
         f"DELETE FROM plugins WHERE id NOT IN ({placeholders})",
         tuple(valid_plugin_ids),
     )
+    await db.commit()
+
+
+async def delete_plugin(plugin_id: str):
+    """Delete a plugin metadata row by plugin id."""
+    db = await get_db()
+    await db.execute("DELETE FROM plugins WHERE id = ?", (plugin_id,))
     await db.commit()
 
 

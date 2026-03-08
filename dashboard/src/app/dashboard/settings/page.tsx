@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, Save, RotateCcw, Languages, Hash, Power, PowerOff, Info, Globe, Plus, Trash2, Cpu, CheckCircle2, AlertCircle, MessageSquare, ShieldAlert, Sliders, Calendar, Clock } from "lucide-react";
-import { api, ChannelProviderItem, ProviderItem, ChannelPromptItem } from "@/lib/api";
+import { api, ChannelProviderItem, ProviderItem, ChannelPromptItem, GuildInfo, GuildChannel } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -72,6 +72,10 @@ function SettingsPageContent() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [guilds, setGuilds] = useState<GuildInfo[]>([]);
+  const [selectedGuildId, setSelectedGuildId] = useState("");
+  const [guildChannels, setGuildChannels] = useState<GuildChannel[]>([]);
+  const [guildLoading, setGuildLoading] = useState(false);
   // Translation states
   const [translateEnabled, setTranslateEnabled] = useState(false);
   const [translateChannelId, setTranslateChannelId] = useState("");
@@ -88,12 +92,12 @@ function SettingsPageContent() {
   const [channelProviderMappings, setChannelProviderMappings] = useState<ChannelProviderItem[]>([]);
   const [channelProviderAvailableProviders, setChannelProviderAvailableProviders] = useState<ProviderItem[]>([]);
   const [newChannelProviderChannelId, setNewChannelProviderChannelId] = useState("");
-  const [newChannelProviderGuildId, setNewChannelProviderGuildId] = useState("");
+  const [, setNewChannelProviderGuildId] = useState("");
   const [newChannelProviderProvider, setNewChannelProviderProvider] = useState("");
   // Prompts states
   const [channelPromptPrompts, setChannelPromptPrompts] = useState<ChannelPromptItem[]>([]);
   const [newChannelPromptChannelId, setNewChannelPromptChannelId] = useState("");
-  const [newChannelPromptGuildId, setNewChannelPromptGuildId] = useState("");
+  const [, setNewChannelPromptGuildId] = useState("");
   const [newChannelPromptPrompt, setNewChannelPromptPrompt] = useState("");
 
   const token = (session as { accessToken?: string })?.accessToken;
@@ -108,35 +112,76 @@ function SettingsPageContent() {
 
   useEffect(() => {
     if (!token) return;
-    api
-      .getConfig(token)
-      .then(({ config }) => {
+    Promise.allSettled([api.getConfig(token), api.getBotGuilds(token), api.getBotStatus(token)])
+      .then(([configResult, guildsResult, statusResult]) => {
+        if (configResult.status !== "fulfilled") {
+          throw new Error("Failed to load settings");
+        }
+
+        const cfg = configResult.value.config;
         const mapped: Partial<SettingsForm> = {};
         for (const key of Object.keys(DEFAULTS) as (keyof SettingsForm)[]) {
-          if (config[key] !== undefined) {
+          if (cfg[key] !== undefined) {
             if (key === "MAX_TOKENS" || key === "RATE_LIMIT_USER" || key === "RATE_LIMIT_GUILD") {
-              mapped[key] = Number(config[key]);
+              mapped[key] = Number(cfg[key]);
             } else {
-              (mapped as Record<string, string>)[key] = config[key];
+              (mapped as Record<string, string>)[key] = cfg[key];
             }
           }
         }
-        setTranslateEnabled(config.TRANSLATE_AUTO_ENABLED === "1");
-        setTranslateChannelId(config.TRANSLATE_AUTO_CHANNEL_ID || "");
-        setTranslateTargetLang(config.TRANSLATE_AUTO_TARGET || "English");
-        // Load Moderation settings
-        setModEnabled(config.MODERATION_ENABLED === "1");
-        setModChannelId(config.MOD_LOG_CHANNEL_ID || "");
-        setModSensitivity(config.MODERATION_SENSITIVITY || "medium");
-        // Load Daily Digest settings
-        setDigestEnabled(config.DIGEST_ENABLED === "1");
-        setDigestChannelId(config.DIGEST_CHANNEL_ID || "");
-        setDigestTime(config.DIGEST_TIME || "09:00");
         form.reset({ ...DEFAULTS, ...mapped });
+
+        let nextGuilds: GuildInfo[] = [];
+        if (guildsResult.status === "fulfilled") {
+          nextGuilds = guildsResult.value.guilds || [];
+        } else if (statusResult.status === "fulfilled") {
+          nextGuilds = statusResult.value.guilds || [];
+        }
+
+        setGuilds(nextGuilds);
+        if (nextGuilds.length > 0) {
+          setSelectedGuildId(nextGuilds[0].id);
+        }
       })
       .catch(() => toast.error("Failed to load settings"))
       .finally(() => setLoading(false));
   }, [token]);
+
+  useEffect(() => {
+    if (!token || !selectedGuildId) return;
+    setGuildLoading(true);
+
+    Promise.allSettled([api.getConfig(token, selectedGuildId), api.getGuildChannels(token, selectedGuildId)])
+      .then(([configResult, channelsResult]) => {
+        if (configResult.status === "fulfilled") {
+          const cfg = configResult.value.config;
+          setTranslateEnabled(cfg.TRANSLATE_AUTO_ENABLED === "1");
+          setTranslateChannelId(cfg.TRANSLATE_AUTO_CHANNEL_ID || "");
+          setTranslateTargetLang(cfg.TRANSLATE_AUTO_TARGET || "English");
+
+          setModEnabled(cfg.MODERATION_ENABLED === "1");
+          setModChannelId(cfg.MOD_LOG_CHANNEL_ID || "");
+          setModSensitivity(cfg.MODERATION_SENSITIVITY || "medium");
+
+          setDigestEnabled(cfg.DIGEST_ENABLED === "1");
+          setDigestChannelId(cfg.DIGEST_CHANNEL_ID || "");
+          setDigestTime(cfg.DIGEST_TIME || "09:00");
+        } else {
+          toast.error("Failed to load selected server settings");
+        }
+
+        if (channelsResult.status === "fulfilled") {
+          setGuildChannels(channelsResult.value.channels || []);
+        } else {
+          setGuildChannels([]);
+          toast.error("Failed to fetch channels for selected server");
+        }
+
+        setNewChannelProviderGuildId(selectedGuildId);
+        setNewChannelPromptGuildId(selectedGuildId);
+      })
+      .finally(() => setGuildLoading(false));
+  }, [token, selectedGuildId]);
 
   useEffect(() => {
     if (!token) return;
@@ -147,26 +192,34 @@ function SettingsPageContent() {
           api.getChannelProviders(token!),
         ]);
         setChannelProviderAvailableProviders(providersData.providers);
-        setChannelProviderMappings(mappingsData);
+        setChannelProviderMappings(
+          selectedGuildId
+            ? mappingsData.filter((mapping) => mapping.guild_id === selectedGuildId)
+            : mappingsData
+        );
       } catch (err) {
         toast.error("Failed to load channel provider configuration");
       }
     }
     loadChannelProvidersData();
-  }, [token]);
+  }, [token, selectedGuildId]);
 
   useEffect(() => {
     if (!token) return;
     async function loadChannelPromptPrompts() {
       try {
         const data = await api.getChannelPrompts(token!);
-        setChannelPromptPrompts(data);
+        setChannelPromptPrompts(
+          selectedGuildId
+            ? data.filter((prompt) => prompt.guild_id === selectedGuildId)
+            : data
+        );
       } catch (err) {
         toast.error("Failed to load channel prompts");
       }
     }
     loadChannelPromptPrompts();
-  }, [token]);
+  }, [token, selectedGuildId]);
 
   async function onSubmit(values: SettingsForm) {
     if (!token) return;
@@ -191,7 +244,7 @@ function SettingsPageContent() {
       payload.DIGEST_ENABLED = digestEnabled ? "1" : "0";
       payload.DIGEST_CHANNEL_ID = digestChannelId;
       payload.DIGEST_TIME = digestTime;
-      await api.updateConfig(token, payload);
+      await api.updateConfig(token, payload, selectedGuildId || undefined);
       toast.success("Settings saved successfully");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save settings");
@@ -205,7 +258,7 @@ function SettingsPageContent() {
   }
 
   async function handleAddChannelProvider() {
-    if (!token || !newChannelProviderChannelId || !newChannelProviderGuildId || !newChannelProviderProvider) {
+    if (!token || !selectedGuildId || !newChannelProviderChannelId || !newChannelProviderProvider) {
       toast.error("Please fill in all fields");
       return;
     }
@@ -214,12 +267,12 @@ function SettingsPageContent() {
     try {
       await api.updateChannelProvider(token, {
         channel_id: newChannelProviderChannelId,
-        guild_id: newChannelProviderGuildId,
+        guild_id: selectedGuildId,
         provider: newChannelProviderProvider,
       });
       toast.success("Channel provider updated");
       setNewChannelProviderChannelId("");
-      setNewChannelProviderGuildId("");
+      setNewChannelProviderGuildId(selectedGuildId);
       setNewChannelProviderProvider("");
       // Reload mappings after update
       const [providersData, mappingsData] = await Promise.all([
@@ -227,7 +280,11 @@ function SettingsPageContent() {
         api.getChannelProviders(token!),
       ]);
       setChannelProviderAvailableProviders(providersData.providers);
-      setChannelProviderMappings(mappingsData);
+      setChannelProviderMappings(
+        selectedGuildId
+          ? mappingsData.filter((mapping) => mapping.guild_id === selectedGuildId)
+          : mappingsData
+      );
     } catch (err) {
       toast.error("Failed to update channel provider");
     } finally {
@@ -246,14 +303,18 @@ function SettingsPageContent() {
         api.getChannelProviders(token!),
       ]);
       setChannelProviderAvailableProviders(providersData.providers);
-      setChannelProviderMappings(mappingsData);
+      setChannelProviderMappings(
+        selectedGuildId
+          ? mappingsData.filter((mapping) => mapping.guild_id === selectedGuildId)
+          : mappingsData
+      );
     } catch (err) {
       toast.error("Failed to remove mapping");
     }
   }
 
   async function handleAddChannelPrompt() {
-    if (!token || !newChannelPromptChannelId || !newChannelPromptGuildId || !newChannelPromptPrompt) {
+    if (!token || !selectedGuildId || !newChannelPromptChannelId || !newChannelPromptPrompt) {
       toast.error("Please fill in all fields");
       return;
     }
@@ -262,16 +323,20 @@ function SettingsPageContent() {
     try {
       await api.updateChannelPrompt(token, {
         channel_id: newChannelPromptChannelId,
-        guild_id: newChannelPromptGuildId,
+        guild_id: selectedGuildId,
         system_prompt: newChannelPromptPrompt,
       });
       toast.success("Channel prompt updated");
       setNewChannelPromptChannelId("");
-      setNewChannelPromptGuildId("");
+      setNewChannelPromptGuildId(selectedGuildId);
       setNewChannelPromptPrompt("");
       // Reload prompts after update
       const data = await api.getChannelPrompts(token!);
-      setChannelPromptPrompts(data);
+      setChannelPromptPrompts(
+        selectedGuildId
+          ? data.filter((prompt) => prompt.guild_id === selectedGuildId)
+          : data
+      );
     } catch (err) {
       toast.error("Failed to update prompt");
     } finally {
@@ -286,7 +351,11 @@ function SettingsPageContent() {
       toast.success("Prompt removed");
       // Reload prompts after delete
       const data = await api.getChannelPrompts(token!);
-      setChannelPromptPrompts(data);
+      setChannelPromptPrompts(
+        selectedGuildId
+          ? data.filter((prompt) => prompt.guild_id === selectedGuildId)
+          : data
+      );
     } catch (err) {
       toast.error("Failed to remove prompt");
     }
@@ -294,6 +363,7 @@ function SettingsPageContent() {
 
   const maxTokens = form.watch("MAX_TOKENS");
   const systemPrompt = form.watch("SYSTEM_PROMPT");
+  const selectedGuild = guilds.find((g) => g.id === selectedGuildId) || null;
 
   if (loading) {
     return (
@@ -315,6 +385,38 @@ function SettingsPageContent() {
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Server Context</CardTitle>
+            <CardDescription>
+              Choose the Discord server to manage per-server channels and feature settings.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Label htmlFor="guild-selector">Server</Label>
+            <select
+              id="guild-selector"
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              value={selectedGuildId}
+              onChange={(e) => setSelectedGuildId(e.target.value)}
+            >
+              <option value="">Select a server...</option>
+              {guilds.map((guild) => (
+                <option key={guild.id} value={guild.id}>
+                  {guild.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              {guildLoading
+                ? "Loading channels and settings for selected server..."
+                : selectedGuild
+                  ? `Configuring: ${selectedGuild.name}`
+                  : "No server selected."}
+            </p>
+          </CardContent>
+        </Card>
+
         <Tabs value={activeTab} className="w-full">
 
           <TabsContent value="general" className="space-y-6">
@@ -522,14 +624,22 @@ function SettingsPageContent() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="channel" className="flex items-center gap-2">
-                      <Hash className="h-4 w-4" /> Auto-Translate Channel ID
+                      <Hash className="h-4 w-4" /> Auto-Translate Channel
                     </Label>
-                    <Input
+                    <select
                       id="channel"
-                      placeholder="e.g. 123456789012345678"
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                       value={translateChannelId}
                       onChange={(e) => setTranslateChannelId(e.target.value)}
-                    />
+                      disabled={!selectedGuildId}
+                    >
+                      <option value="">Select a channel...</option>
+                      {guildChannels.map((channel) => (
+                        <option key={channel.id} value={channel.id}>
+                          #{channel.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -607,21 +717,28 @@ function SettingsPageContent() {
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
-                    <Label htmlFor="new-channel-provider-channel-id">Channel ID</Label>
-                    <Input
+                    <Label htmlFor="new-channel-provider-channel-id">Channel</Label>
+                    <select
                       id="new-channel-provider-channel-id"
-                      placeholder="e.g., 123456789012345678"
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                       value={newChannelProviderChannelId}
                       onChange={(e) => setNewChannelProviderChannelId(e.target.value)}
-                    />
+                      disabled={!selectedGuildId}
+                    >
+                      <option value="">Select a channel...</option>
+                      {guildChannels.map((channel) => (
+                        <option key={channel.id} value={channel.id}>
+                          #{channel.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="new-channel-provider-guild-id">Guild ID</Label>
+                    <Label htmlFor="new-channel-provider-guild-id">Server</Label>
                     <Input
                       id="new-channel-provider-guild-id"
-                      placeholder="e.g., 987654321098765432"
-                      value={newChannelProviderGuildId}
-                      onChange={(e) => setNewChannelProviderGuildId(e.target.value)}
+                      value={selectedGuild?.name || "No server selected"}
+                      readOnly
                     />
                   </div>
                   <div className="space-y-2">
@@ -718,21 +835,28 @@ function SettingsPageContent() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="new-channel-prompt-channel-id">Channel ID</Label>
-                    <Input
+                    <Label htmlFor="new-channel-prompt-channel-id">Channel</Label>
+                    <select
                       id="new-channel-prompt-channel-id"
-                      placeholder="e.g., 123456789012345678"
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                       value={newChannelPromptChannelId}
                       onChange={(e) => setNewChannelPromptChannelId(e.target.value)}
-                    />
+                      disabled={!selectedGuildId}
+                    >
+                      <option value="">Select a channel...</option>
+                      {guildChannels.map((channel) => (
+                        <option key={channel.id} value={channel.id}>
+                          #{channel.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="new-channel-prompt-guild-id">Guild ID</Label>
+                    <Label htmlFor="new-channel-prompt-guild-id">Server</Label>
                     <Input
                       id="new-channel-prompt-guild-id"
-                      placeholder="e.g., 987654321098765432"
-                      value={newChannelPromptGuildId}
-                      onChange={(e) => setNewChannelPromptGuildId(e.target.value)}
+                      value={selectedGuild?.name || "No server selected"}
+                      readOnly
                     />
                   </div>
                 </div>
@@ -801,14 +925,22 @@ function SettingsPageContent() {
 
                 <div className="space-y-4">
                   <Label htmlFor="channel" className="flex items-center gap-2">
-                    <Hash className="h-4 w-4" /> Mod Log Channel ID
+                    <Hash className="h-4 w-4" /> Mod Log Channel
                   </Label>
-                  <Input
+                  <select
                     id="channel"
-                    placeholder="e.g. 123456789012345678"
+                    className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                     value={modChannelId}
                     onChange={(e) => setModChannelId(e.target.value)}
-                  />
+                    disabled={!selectedGuildId}
+                  >
+                    <option value="">Select a channel...</option>
+                    {guildChannels.map((channel) => (
+                      <option key={channel.id} value={channel.id}>
+                        #{channel.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-4">
@@ -914,14 +1046,22 @@ function SettingsPageContent() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="channel" className="flex items-center gap-2">
-                      <Hash className="h-4 w-4" /> Digest Channel ID
+                      <Hash className="h-4 w-4" /> Digest Channel
                     </Label>
-                    <Input
+                    <select
                       id="channel"
-                      placeholder="e.g. 123456789012345678"
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
                       value={digestChannelId}
                       onChange={(e) => setDigestChannelId(e.target.value)}
-                    />
+                      disabled={!selectedGuildId}
+                    >
+                      <option value="">Select a channel...</option>
+                      {guildChannels.map((channel) => (
+                        <option key={channel.id} value={channel.id}>
+                          #{channel.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useSession } from "next-auth/react";
 import { 
   Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter 
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { 
-  Loader2, RefreshCw, Puzzle, User, AlertCircle, Upload 
+  Loader2, RefreshCw, Puzzle, User, AlertCircle, Upload, Trash2 
 } from "lucide-react";
 import { api, type PluginItem } from "@/lib/api";
 
@@ -23,7 +23,7 @@ export default function PluginsPage() {
 
   const token = (session as { accessToken?: string })?.accessToken;
 
-  const fetchPlugins = async () => {
+  const fetchPlugins = useCallback(async () => {
     if (!token) return;
     try {
       const data = await api.getPlugins(token);
@@ -39,13 +39,13 @@ export default function PluginsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     if (token) {
       fetchPlugins();
     }
-  }, [token]);
+  }, [token, fetchPlugins]);
 
   const togglePlugin = async (id: string, currentStatus: boolean) => {
     if (!token) return;
@@ -133,6 +133,25 @@ export default function PluginsPage() {
     }
   };
 
+  const removePlugin = async (id: string, name: string) => {
+    if (!token) return;
+    const confirmed = window.confirm(`Delete plugin \"${name}\"? This will remove its files from the server.`);
+    if (!confirmed) return;
+
+    setActionLoading(`delete-${id}`);
+    try {
+      await api.deletePlugin(token, id);
+      toast.success("Plugin removed successfully");
+      await fetchPlugins();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to remove plugin";
+      toast.error(message);
+      console.error(error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-[400px] items-center justify-center">
@@ -166,7 +185,7 @@ export default function PluginsPage() {
               ) : (
                 <Upload className="h-4 w-4" />
               )}
-              Upload Plugin
+              Install Plugin
             </Button>
             <Button
               variant="outline"
@@ -190,7 +209,7 @@ export default function PluginsPage() {
           <Puzzle className="mb-4 h-12 w-12 text-muted-foreground opacity-20" />
           <CardTitle>No plugins found</CardTitle>
           <CardDescription className="mt-2 max-w-[400px]">
-            Upload plugin <code>.zip</code> archives or place them in the <code>plugins/</code> directory with a <code>manifest.json</code>.
+            Install plugin <code>.zip</code> archives or place them in the <code>plugins/</code> directory with a <code>manifest.json</code>.
           </CardDescription>
         </Card>
       ) : (
@@ -226,17 +245,33 @@ export default function PluginsPage() {
                     {actionLoading === plugin.id ? "Working..." : "Active"}
                   </span>
                 </div>
-                {plugin.enabled && (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    title="Reload Code"
-                    onClick={() => reloadPlugin(plugin.id)}
-                    disabled={actionLoading === `reload-${plugin.id}`}
+                <div className="flex items-center gap-1">
+                  {plugin.enabled && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      title="Reload Code"
+                      onClick={() => reloadPlugin(plugin.id)}
+                      disabled={actionLoading === `reload-${plugin.id}` || actionLoading === `delete-${plugin.id}`}
+                    >
+                      <RefreshCw className={`h-4 w-4 ${actionLoading === `reload-${plugin.id}` ? "animate-spin" : ""}`} />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Delete Plugin"
+                    onClick={() => removePlugin(plugin.id, plugin.name)}
+                    disabled={actionLoading === `delete-${plugin.id}`}
+                    className="text-muted-foreground hover:text-destructive"
                   >
-                    <RefreshCw className={`h-4 w-4 ${actionLoading === `reload-${plugin.id}` ? "animate-spin" : ""}`} />
+                    {actionLoading === `delete-${plugin.id}` ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
                   </Button>
-                )}
+                </div>
               </CardFooter>
             </Card>
           ))}

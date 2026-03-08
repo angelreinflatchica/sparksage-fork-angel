@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -12,25 +12,50 @@ import { toast } from "sonner";
 export default function ConversationsPage() {
   const { data: session } = useSession();
   const [channels, setChannels] = useState<ChannelItem[]>([]);
+  const [guildNamesById, setGuildNamesById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   const token = (session as { accessToken?: string })?.accessToken;
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!token) return;
     try {
-      const result = await api.getConversations(token);
-      setChannels(result.channels);
+      const [conversationsResult, guildsResult, statusResult] = await Promise.allSettled([
+        api.getConversations(token),
+        api.getBotGuilds(token),
+        api.getBotStatus(token),
+      ]);
+
+      if (conversationsResult.status === "fulfilled") {
+        setChannels(conversationsResult.value.channels);
+      }
+
+      const guilds =
+        guildsResult.status === "fulfilled"
+          ? guildsResult.value.guilds
+          : statusResult.status === "fulfilled"
+            ? statusResult.value.guilds
+            : [];
+
+      const nextGuildNamesById: Record<string, string> = {};
+      for (const guild of guilds) {
+        nextGuildNamesById[guild.id] = guild.name;
+      }
+      setGuildNamesById(nextGuildNamesById);
+
+      if (conversationsResult.status !== "fulfilled") {
+        throw new Error("Failed to load conversations");
+      }
     } catch {
       toast.error("Failed to load conversations");
     } finally {
       setLoading(false);
     }
-  }
+  }, [token]);
 
   useEffect(() => {
     load();
-  }, [token]);
+  }, [load]);
 
   async function handleDelete(channelId: string) {
     if (!token) return;
@@ -59,7 +84,7 @@ export default function ConversationsPage() {
           <CardTitle className="text-base">Channels</CardTitle>
         </CardHeader>
         <CardContent>
-          <ChannelList channels={channels} onDelete={handleDelete} />
+          <ChannelList channels={channels} onDelete={handleDelete} guildNamesById={guildNamesById} />
         </CardContent>
       </Card>
     </div>
