@@ -903,7 +903,7 @@ function SettingsPageContent() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="time" className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" /> Delivery Time (24h)
+                      <Clock className="h-4 w-4" /> Delivery Time (PHT, UTC+8)
                     </Label>
                     <Input
                       id="time"
@@ -929,7 +929,7 @@ function SettingsPageContent() {
                   <Info className="mt-0.5 h-3 w-3 shrink-0" />
                   <p className="text-muted-foreground">
                     The digest will include a bullet-point summary of the top 5 most active channels 
-                    from the last 24 hours. The bot must have permission to view those channels 
+                    from the last 24 hours. Delivery time is interpreted in Philippine Time (UTC+8). The bot must have permission to view those channels 
                     and send messages in the digest channel.
                   </p>
                 </div>
