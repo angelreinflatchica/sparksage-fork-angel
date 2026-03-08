@@ -38,7 +38,7 @@ export default function DashboardOverview() {
       name: "Daily Digest",
       enabled: config.DIGEST_ENABLED === "1",
       icon: Calendar,
-      desc: config.DIGEST_TIME ? `Scheduled for ${config.DIGEST_TIME}` : "Not scheduled",
+      desc: config.DIGEST_TIME ? `Scheduled for ${config.DIGEST_TIME} PHT (UTC+8)` : "Not scheduled",
     },
     {
       name: "Auto-Moderation",

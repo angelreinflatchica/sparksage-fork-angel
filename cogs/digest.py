@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from bot import bot
 
 logger = logging.getLogger("sparksage.digest")
+PH_TZ = datetime.timezone(datetime.timedelta(hours=8), name="UTC+08:00")
 
 class Digest(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -35,13 +36,19 @@ class Digest(commands.Cog):
             return
             
         target_time = await database.get_config("DIGEST_TIME", "09:00")
-        now_dt = datetime.datetime.now()
+        try:
+            datetime.time.fromisoformat(target_time)
+        except ValueError:
+            logger.warning("Daily digest skipped: invalid DIGEST_TIME value '%s' (expected HH:MM).", target_time)
+            return
+
+        now_dt = datetime.datetime.now(PH_TZ)
         now_str = now_dt.strftime("%H:%M")
         today_date = now_dt.date()
         
         # Only run if the time matches AND we haven't run today yet
         if now_str == target_time and self.last_run_date != today_date:
-            logger.info(f"Running scheduled daily digest at {now_str}")
+            logger.info("Running scheduled daily digest at %s PHT (UTC+8)", now_str)
             await self.run_digest()
             self.last_run_date = today_date
 
