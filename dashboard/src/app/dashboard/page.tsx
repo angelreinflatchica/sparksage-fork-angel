@@ -82,7 +82,14 @@ export default function DashboardOverview() {
               <p className="text-sm text-muted-foreground">Loading...</p>
             ) : (
               <div className="flex items-center gap-2">
-                <Badge variant={botStatus?.online ? "default" : "secondary"}>
+                <Badge
+                  variant={botStatus?.online ? "default" : "secondary"}
+                  className={
+                    botStatus?.online
+                      ? "border-green-500/40 bg-green-500/10 text-green-700"
+                      : "text-muted-foreground"
+                  }
+                >
                   {botStatus?.online ? "Online" : "Offline"}
                 </Badge>
                 {botStatus?.online && (
@@ -162,7 +169,14 @@ export default function DashboardOverview() {
                     <p className="text-xs text-muted-foreground">{feature.desc}</p>
                   </div>
                 </div>
-                <Badge variant={feature.enabled ? "outline" : "secondary"}>
+                <Badge
+                  variant={feature.enabled ? "outline" : "secondary"}
+                  className={
+                    feature.enabled
+                      ? "border-green-500/40 bg-green-500/10 text-green-700"
+                      : "text-muted-foreground"
+                  }
+                >
                   {feature.enabled ? "Active" : "Inactive"}
                 </Badge>
               </div>
