@@ -25,6 +25,22 @@ class Digest(commands.Cog):
         self.daily_digest.start()
         self.last_run_date = None
 
+    async def _safe_defer(self, interaction: discord.Interaction, ephemeral: bool = False):
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=ephemeral)
+
+    async def _safe_send(
+        self,
+        interaction: discord.Interaction,
+        content: str,
+        *,
+        ephemeral: bool = False,
+    ):
+        if interaction.response.is_done():
+            await interaction.followup.send(content, ephemeral=ephemeral)
+        else:
+            await interaction.response.send_message(content, ephemeral=ephemeral)
+
     def cog_unload(self):
         self.daily_digest.cancel()
 
@@ -110,7 +126,16 @@ class Digest(commands.Cog):
                 response, provider_name, input_tokens, output_tokens, estimated_cost, latency = await asyncio.to_thread(
                     providers.chat, recent_messages, prompt
                 )
-                summary_sections.append(f"### #{ch_name}\n{response}")
+                if response is None:
+                    logger.warning("Digest summary empty for channel %s (provider=%s): response=None", ch_id, provider_name)
+                    continue
+
+                response_text = str(response).strip()
+                if not response_text or response_text.lower() == "none":
+                    logger.warning("Digest summary empty for channel %s (provider=%s): response='%s'", ch_id, provider_name, response)
+                    continue
+
+                summary_sections.append(f"### #{ch_name}\n{response_text}")
                 
                 # Record analytics for each channel summary
                 ch_obj = self.bot.get_channel(int(ch_id))
@@ -153,9 +178,9 @@ class Digest(commands.Cog):
     @app_commands.command(name="digest_test", description="Manually trigger a daily digest for testing")
     @app_commands.check(has_command_permission)
     async def digest_test(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+        await self._safe_defer(interaction, ephemeral=True)
         await self.run_digest(channel_override=interaction.channel)
-        await interaction.followup.send("Digest test completed. Check this channel for the output.")
+        await self._safe_send(interaction, "Digest test completed. Check this channel for the output.", ephemeral=True)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Digest(bot))
