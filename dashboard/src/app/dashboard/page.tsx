@@ -15,6 +15,7 @@ const DISCORD_CLIENT_ID = "1473885802227302410";
 const DISCORD_BOT_PERMISSIONS = "2885120658966592";
 const DISCORD_BOT_SCOPE = "bot applications.commands";
 const DISCORD_OAUTH_BASE_URL = "https://discord.com/oauth2/authorize";
+const DISCORD_REDIRECT_URI = process.env.NEXT_PUBLIC_DISCORD_REDIRECT_URI?.trim();
 
 export default function DashboardOverview() {
   const { data: session } = useSession();
@@ -85,15 +86,19 @@ export default function DashboardOverview() {
 
   function handleAddToDiscord(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
-    const redirectUri = `${window.location.origin}/dashboard/discord/success`;
     const params = new URLSearchParams({
       client_id: DISCORD_CLIENT_ID,
       permissions: DISCORD_BOT_PERMISSIONS,
       integration_type: "0",
       scope: DISCORD_BOT_SCOPE,
-      redirect_uri: redirectUri,
-      response_type: "code",
     });
+
+    // Use callback only when an explicit, Discord-whitelisted URI is configured.
+    if (DISCORD_REDIRECT_URI) {
+      params.set("redirect_uri", DISCORD_REDIRECT_URI);
+      params.set("response_type", "code");
+    }
+
     window.location.assign(`${DISCORD_OAUTH_BASE_URL}?${params.toString()}`);
   }
 
