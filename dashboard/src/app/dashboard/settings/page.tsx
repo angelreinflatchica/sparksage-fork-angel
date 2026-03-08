@@ -657,6 +657,15 @@ function SettingsPageContent() {
                     </p>
                   </div>
                 </div>
+
+                <Button type="submit" disabled={saving} className="w-full">
+                  {saving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  Save Moderation Settings
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>

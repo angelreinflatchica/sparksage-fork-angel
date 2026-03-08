@@ -83,6 +83,13 @@ export default function DashboardOverview() {
   ];
   const completedChecks = configChecks.filter((item) => item.done).length;
   const configCompletenessPct = Math.round((completedChecks / configChecks.length) * 100);
+  const moderationChecks = [
+    { label: "Auto-moderation enabled", done: config.MODERATION_ENABLED === "1" },
+    { label: "Log channel selected", done: Boolean(config.MOD_LOG_CHANNEL_ID?.trim()) },
+    { label: "Sensitivity set", done: Boolean(config.MODERATION_SENSITIVITY?.trim()) },
+  ];
+  const moderationCompleted = moderationChecks.filter((item) => item.done).length;
+  const moderationCompletenessPct = Math.round((moderationCompleted / moderationChecks.length) * 100);
 
   function handleAddToDiscord(event: MouseEvent<HTMLAnchorElement>) {
     event.preventDefault();
@@ -324,7 +331,7 @@ export default function DashboardOverview() {
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Configuration Completeness</CardTitle>
@@ -342,6 +349,34 @@ export default function DashboardOverview() {
             </div>
             <div className="space-y-2">
               {configChecks.map((item) => (
+                <div key={item.label} className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{item.label}</span>
+                  <Badge variant={item.done ? "outline" : "secondary"}>
+                    {item.done ? "Done" : "Missing"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Moderation Setup</CardTitle>
+            <CardDescription>
+              {moderationCompleted}/{moderationChecks.length} moderation checks completed
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span>Moderation readiness</span>
+                <span className="font-medium">{moderationCompletenessPct}%</span>
+              </div>
+              <Progress value={moderationCompletenessPct} />
+            </div>
+            <div className="space-y-2">
+              {moderationChecks.map((item) => (
                 <div key={item.label} className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">{item.label}</span>
                   <Badge variant={item.done ? "outline" : "secondary"}>
