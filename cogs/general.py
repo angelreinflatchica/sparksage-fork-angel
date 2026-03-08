@@ -5,6 +5,7 @@ import config
 import providers
 import db as database
 from utils.checks import has_command_permission
+from utils.rate_limiter import get_limiter
 from cogs.prompts import get_channel_prompt
 from cogs.channel_providers import get_channel_provider
 
@@ -59,10 +60,44 @@ class General(commands.Cog):
         except RuntimeError as e:
             return f"Sorry, all AI providers failed:\n{e}", "none"
 
+    async def _check_rate_limits(self, interaction: discord.Interaction) -> str | None:
+        """Return a friendly rate-limit message if blocked, otherwise None."""
+        if interaction.guild_id is not None:
+            try:
+                guild_limit_str = await database.get_config("RATE_LIMIT_GUILD", str(config.RATE_LIMIT_GUILD))
+                guild_limit = int(guild_limit_str)
+                limited, retry = await get_limiter().is_rate_limited(
+                    str(interaction.guild_id), guild_limit, is_guild=True
+                )
+                if limited:
+                    retry_s = retry or 1
+                    return f"⚠️ This server has reached its AI request limit. Please try again in {retry_s}s."
+            except Exception:
+                # Do not block command execution if limiter lookup fails.
+                pass
+
+        try:
+            user_limit_str = await database.get_config("RATE_LIMIT_USER", str(config.RATE_LIMIT_USER))
+            user_limit = int(user_limit_str)
+            limited, retry = await get_limiter().is_rate_limited(str(interaction.user.id), user_limit)
+            if limited:
+                retry_s = retry or 1
+                return f"⏳ You're sending requests too fast! Please wait {retry_s}s."
+        except Exception:
+            # Do not block command execution if limiter lookup fails.
+            pass
+
+        return None
+
     @app_commands.command(name="ask", description="Ask SparkSage a question")
     @app_commands.describe(question="Your question for SparkSage")
     @app_commands.check(has_command_permission)
     async def ask(self, interaction: discord.Interaction, question: str):
+        blocked_message = await self._check_rate_limits(interaction)
+        if blocked_message:
+            await interaction.response.send_message(blocked_message, ephemeral=True)
+            return
+
         await interaction.response.defer()
         response, provider_name = await self.ask_ai(
             interaction.guild_id, interaction.channel_id, interaction.user.id, interaction.user.display_name, question
