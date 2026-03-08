@@ -1,10 +1,50 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { SessionProvider } from "next-auth/react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/sidebar/app-sidebar";
 import { Separator } from "@/components/ui/separator";
+
+function ProtectedDashboardShell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const { status } = useSession();
+
+  useEffect(() => {
+    if (status !== "unauthenticated") return;
+    const callbackUrl = `${window.location.pathname}${window.location.search}`;
+    router.replace(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+  }, [status, router]);
+
+  if (status !== "authenticated") {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <SidebarProvider>
+      <Suspense fallback={<div className="w-64 border-r bg-background" />}>
+        <AppSidebar />
+      </Suspense>
+      <main className="flex-1">
+        <header className="flex h-14 items-center gap-2 border-b px-4">
+          <SidebarTrigger />
+          <Separator orientation="vertical" className="h-6" />
+          <span className="text-sm font-medium text-muted-foreground">
+            SparkSage Dashboard
+          </span>
+        </header>
+        <div className="p-6">{children}</div>
+      </main>
+    </SidebarProvider>
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -13,21 +53,7 @@ export default function DashboardLayout({
 }) {
   return (
     <SessionProvider>
-      <SidebarProvider>
-        <Suspense fallback={<div className="w-64 border-r bg-background" />}>
-          <AppSidebar />
-        </Suspense>
-        <main className="flex-1">
-          <header className="flex h-14 items-center gap-2 border-b px-4">
-            <SidebarTrigger />
-            <Separator orientation="vertical" className="h-6" />
-            <span className="text-sm font-medium text-muted-foreground">
-              SparkSage Dashboard
-            </span>
-          </header>
-          <div className="p-6">{children}</div>
-        </main>
-      </SidebarProvider>
+      <ProtectedDashboardShell>{children}</ProtectedDashboardShell>
     </SessionProvider>
   );
 }
