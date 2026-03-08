@@ -105,11 +105,15 @@ class Moderation(commands.Cog):
             
         try:
             mod_log_id = int(mod_log_id_str)
-            mod_log = self.bot.get_channel(mod_log_id)
+            # Resolve log channel within the current guild only.
+            mod_log = message.guild.get_channel(mod_log_id)
         except (ValueError, TypeError):
             return
 
         if not mod_log:
+            return
+
+        if mod_log.guild.id != message.guild.id:
             return
 
         if message.channel.id == mod_log_id:
