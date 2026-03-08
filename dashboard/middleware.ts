@@ -2,21 +2,27 @@ import { auth } from "@/lib/auth";
 
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
-  const { pathname } = req.nextUrl;
+  const { pathname, search } = req.nextUrl;
 
-  // Public paths
-  if (pathname.startsWith("/login") || pathname.startsWith("/api/auth")) {
+  const isAuthPage = pathname === "/login" || pathname.startsWith("/api/auth");
+  const isProtectedRoute = pathname.startsWith("/dashboard") || pathname.startsWith("/wizard");
+
+  if (isAuthPage) {
+    // Avoid showing login to already authenticated users.
+    if (pathname === "/login" && isLoggedIn) {
+      return Response.redirect(new URL("/dashboard", req.nextUrl.origin));
+    }
     return;
   }
 
-  // Redirect unauthenticated users to login
-  if (!isLoggedIn) {
+  // Redirect unauthenticated users to login for protected app routes.
+  if (isProtectedRoute && !isLoggedIn) {
     const loginUrl = new URL("/login", req.nextUrl.origin);
-    loginUrl.searchParams.set("callbackUrl", pathname);
+    loginUrl.searchParams.set("callbackUrl", `${pathname}${search || ""}`);
     return Response.redirect(loginUrl);
   }
 });
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/dashboard/:path*", "/wizard/:path*", "/login", "/api/auth/:path*"],
 };
