@@ -98,7 +98,9 @@ export default function DashboardOverview() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Latency</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-amber-500/10">
+              <Activity className="h-4 w-4 text-amber-500" />
+            </span>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold tabular-nums">
@@ -112,7 +114,9 @@ export default function DashboardOverview() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Servers</CardTitle>
-            <Server className="h-4 w-4 text-muted-foreground" />
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-blue-500/10">
+              <Server className="h-4 w-4 text-blue-500" />
+            </span>
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold tabular-nums">{botStatus?.guild_count ?? "--"}</p>
@@ -122,7 +126,9 @@ export default function DashboardOverview() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Active Provider</CardTitle>
-            <Cpu className="h-4 w-4 text-muted-foreground" />
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-violet-500/10">
+              <Cpu className="h-4 w-4 text-violet-500" />
+            </span>
           </CardHeader>
           <CardContent>
             {primaryProvider ? (
