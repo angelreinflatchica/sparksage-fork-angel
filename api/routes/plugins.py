@@ -253,7 +253,8 @@ async def _install_plugin_zip(zip_path: Path, manager: PluginManager) -> tuple[s
 
 
 async def _collect_plugins() -> list[PluginManifest]:
-    await _ensure_plugin_manager(require_bot=False)
+    manager = await _ensure_plugin_manager(require_bot=False)
+    await manager.scan_plugins()
     db_plugins = await db.get_plugins()
     plugins: list[PluginManifest] = []
 
