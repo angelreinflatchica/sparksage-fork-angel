@@ -500,6 +500,22 @@ async def sync_plugin(plugin_data: dict):
     await db.commit()
 
 
+async def remove_plugins_not_in(valid_plugin_ids: set[str]):
+    """Delete plugin metadata rows not present in the plugin directory scan."""
+    db = await get_db()
+    if not valid_plugin_ids:
+        await db.execute("DELETE FROM plugins")
+        await db.commit()
+        return
+
+    placeholders = ", ".join("?" for _ in valid_plugin_ids)
+    await db.execute(
+        f"DELETE FROM plugins WHERE id NOT IN ({placeholders})",
+        tuple(valid_plugin_ids),
+    )
+    await db.commit()
+
+
 # --- Session helpers ---
 
 

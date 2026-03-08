@@ -144,6 +144,8 @@ class PluginManager:
         if not os.path.exists(self.plugins_dir):
             os.makedirs(self.plugins_dir)
 
+        discovered_ids: set[str] = set()
+
         for folder_name in os.listdir(self.plugins_dir):
             if folder_name.startswith("__") or folder_name.startswith("."):
                 continue
@@ -165,9 +167,13 @@ class PluginManager:
                     manifest["name"] = folder_name
                 
                 await db.sync_plugin(manifest)
+                discovered_ids.add(folder_name)
                 logger.info(f"Synced plugin metadata: {manifest['name']}")
             except Exception as e:
                 logger.error(f"Error loading manifest for {folder_name}: {e}")
+
+        # Keep plugin table aligned with filesystem to avoid stale dashboard entries.
+        await db.remove_plugins_not_in(discovered_ids)
 
     async def load_enabled_plugins(self):
         """Load all plugins that are marked as enabled in the database."""
@@ -180,6 +186,11 @@ class PluginManager:
     async def load_plugin(self, plugin_id: str) -> tuple[bool, str]:
         """Load or reload a specific plugin by ID."""
         resolved_id, manifest = await self._resolve_plugin_id(plugin_id)
+        if resolved_id is None or manifest is None:
+            # The plugin may have just been uploaded or renamed; rescan and retry once.
+            await self.scan_plugins()
+            resolved_id, manifest = await self._resolve_plugin_id(plugin_id)
+
         if resolved_id is None or manifest is None:
             print(f"❌ Manifest not found for plugin: {plugin_id}")
             return False, f"Manifest not found for plugin: {plugin_id}"
