@@ -105,7 +105,7 @@ class PluginManager:
                 print(f"Enabling plugin on startup: {p['id']}")
                 await self.load_plugin(p["id"])
 
-    async def load_plugin(self, plugin_id: str) -> bool:
+    async def load_plugin(self, plugin_id: str) -> tuple[bool, str]:
         """Load or reload a specific plugin by ID."""
         folder_path = os.path.join(self.plugins_dir, plugin_id)
         manifest_path = os.path.join(folder_path, "manifest.json")
@@ -155,27 +155,37 @@ class PluginManager:
             print(full_traceback)
             return False, full_traceback
 
-    async def unload_plugin(self, plugin_id: str) -> bool:
+    async def unload_plugin(self, plugin_id: str) -> tuple[bool, str]:
         """Unload a specific plugin by ID."""
         folder_path = os.path.join(self.plugins_dir, plugin_id)
         manifest_path = os.path.join(folder_path, "manifest.json")
         
         try:
             if not os.path.exists(manifest_path):
-                return True
+                # If plugin files are missing, still persist disabled state.
+                await db.set_plugin_state(plugin_id, False)
+                return True, ""
 
             with open(manifest_path, "r", encoding="utf-8") as f:
                 manifest = json.load(f)
-            
+
             cog_filename = manifest.get("cog")
+            if not isinstance(cog_filename, str) or not cog_filename.strip():
+                # Some manually deployed plugins may have incomplete manifests.
+                # Disabling should still work by updating persistent plugin state.
+                await db.set_plugin_state(plugin_id, False)
+                return True, ""
+
             module_name = cog_filename.replace(".py", "")
             extension_path = f"plugins.{plugin_id}.{module_name}"
 
             if extension_path in self.bot.extensions:
                 print(f"📤 Unloading plugin: {plugin_id}")
                 await self.bot.unload_extension(extension_path)
-                await db.set_plugin_state(plugin_id, False)
                 print(f"✅ Successfully unloaded: {plugin_id}")
+
+            # Persist disabled state even when extension was not currently loaded.
+            await db.set_plugin_state(plugin_id, False)
             return True, ""
         except Exception as e:
             print(f"❌ ERROR unloading plugin {plugin_id}:")
@@ -183,6 +193,6 @@ class PluginManager:
             print(full_traceback)
             return False, full_traceback
 
-    async def reload_plugin(self, plugin_id: str) -> bool:
+    async def reload_plugin(self, plugin_id: str) -> tuple[bool, str]:
         """Reload a specific plugin."""
         return await self.load_plugin(plugin_id)

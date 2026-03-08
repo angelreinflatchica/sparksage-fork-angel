@@ -59,7 +59,8 @@ export default function PluginsPage() {
       
       toast.success(`Plugin ${!currentStatus ? "enabled" : "disabled"} successfully`);
     } catch (error) {
-      toast.error("Failed to update plugin");
+      const message = error instanceof Error ? error.message : "Failed to update plugin";
+      toast.error(message);
       console.error(error);
     } finally {
       setActionLoading(null);
