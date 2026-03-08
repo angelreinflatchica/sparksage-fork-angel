@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,14 +10,25 @@ import { api } from "@/lib/api";
 
 export default function DiscordOAuthSuccessPage() {
   const { data: session } = useSession();
-  const searchParams = useSearchParams();
-  const code = searchParams.get("code");
-  const guildId = searchParams.get("guild_id");
-  const error = searchParams.get("error");
+  const [query, setQuery] = useState<{ code: string | null; guildId: string | null; error: string | null }>({
+    code: null,
+    guildId: null,
+    error: null,
+  });
   const token = (session as { accessToken?: string } | null)?.accessToken;
   const [guildLookup, setGuildLookup] = useState<{ id: string; name: string | null } | null>(null);
 
+  const { code, guildId, error } = query;
   const isDenied = Boolean(error);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setQuery({
+      code: params.get("code"),
+      guildId: params.get("guild_id"),
+      error: params.get("error"),
+    });
+  }, []);
 
   useEffect(() => {
     if (!token || !guildId || isDenied) return;
